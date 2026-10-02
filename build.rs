@@ -179,7 +179,7 @@ fn main() {
 
 /// `meta-entry.json` (só alguns blueprints têm) traz description/logo melhores.
 fn read_meta(dir: &Path, id: &str) -> (String, String) {
-    let default_logo = find_logo(dir).unwrap_or_default();
+    let default_logo = find_logo(dir).or_else(|| logo_from_list(id)).unwrap_or_default();
     let meta_path = dir.join("meta-entry.json");
     let Ok(s) = std::fs::read_to_string(&meta_path) else {
         return (String::new(), default_logo);
@@ -188,8 +188,24 @@ fn read_meta(dir: &Path, id: &str) -> (String, String) {
     // ingênua pelos campos "description" e "logo".
     let desc = json_string_field(&s, "description").unwrap_or_default();
     let logo = json_string_field(&s, "logo").unwrap_or(default_logo);
-    let _ = id;
     (desc, logo)
+}
+
+/// Os arquivos de logo NÃO vivem neste crate (pesavam 14 MB e estouravam o limite
+/// do crates.io): moraram no repo do `rustploy-gui`, o único que os exibe. Aqui
+/// fica só o mapa `<id>\t<arquivo>` em `templates/logos.txt`, para o catálogo
+/// continuar sabendo o nome do logo de cada template. Um blueprint novo que traga
+/// o logo na própria pasta continua valendo (ver [`find_logo`]).
+fn logo_from_list(id: &str) -> Option<String> {
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").ok()?;
+    let list = Path::new(&manifest).join("templates/logos.txt");
+    println!("cargo:rerun-if-changed={}", list.display());
+    std::fs::read_to_string(list)
+        .ok()?
+        .lines()
+        .filter_map(|l| l.split_once('\t'))
+        .find(|(i, _)| *i == id)
+        .map(|(_, f)| f.to_string())
 }
 
 fn json_string_field(s: &str, field: &str) -> Option<String> {
