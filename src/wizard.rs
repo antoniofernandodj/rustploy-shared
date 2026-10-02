@@ -236,8 +236,9 @@ pub fn broker_rows_json() -> String {
 /// cada linha (`vars: [{idx,label,placeholder}]`) e o `slug` default — assim o
 /// cliente pré-preenche o passo de configuração sem outro round-trip.
 ///
-/// `logo` é o caminho (relativo à raiz do workspace) do arquivo do blueprint;
-/// só carrega no cliente quando ele roda com esse working-dir/sistema de arquivos.
+/// `logo` é o caminho `assets/blueprint-logos/<id>/<arquivo>` — a convenção do
+/// cliente `rustploy-gui`, que é quem guarda as imagens (elas não vivem neste
+/// crate); só carrega quando o cliente roda com esse working-dir/embutido.
 pub fn templates_catalog_json(search: &str) -> String {
     let rows: Vec<serde_json::Value> = templates::filtered(search)
         .into_iter()
@@ -279,7 +280,7 @@ fn template_logo(t: &'static Template) -> (String, &'static str) {
         "png" | "jpg" | "jpeg" | "webp" | "gif" | "bmp" | "ico" => "img",
         _ => "none",
     };
-    let path = format!("crates/shared/templates/blueprints/{}/{}", t.id, t.logo);
+    let path = format!("assets/blueprint-logos/{}/{}", t.id, t.logo);
     (path, kind)
 }
 
