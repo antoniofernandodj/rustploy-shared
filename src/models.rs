@@ -604,25 +604,6 @@ impl DeployState {
         )
     }
 
-    pub fn to_percent(&self) -> u8 {
-        match self {
-            Self::Pending => 5,
-            Self::PreDeployCheck => 8,
-            Self::ResolvingDeps => 10,
-            Self::PullingImage => 30,
-            Self::CloningRepo => 20,
-            Self::BuildingImage => 50,
-            Self::ComposingUp => 60,
-            Self::Staging => 65,
-            Self::HealthcheckPolling => 75,
-            Self::SwappingIn => 85,
-            Self::Draining => 90,
-            Self::Promoting => 95,
-            Self::Live | Self::Stopped | Self::Pruning => 100,
-            Self::RollingBack | Self::Failed => 0,
-        }
-    }
-
     pub fn label(&self) -> &'static str {
         match self {
             Self::Pending => "Pending",
@@ -851,7 +832,6 @@ pub struct ActiveDeployInfo {
     pub service_name: String,
     pub project_name: String,
     pub state: DeployState,
-    pub percent: u8,
     pub started_at: DateTime<Utc>,
     pub elapsed_secs: u64,
     pub current_state_secs: u64,
