@@ -855,6 +855,10 @@ pub struct ActiveDeployInfo {
     pub started_at: DateTime<Utc>,
     pub elapsed_secs: u64,
     pub current_state_secs: u64,
+    /// Histórico de transições do deploy (o `states_log`), em ordem. Alimenta o
+    /// stepper detalhado dos clientes; daemons antigos não o enviam.
+    #[serde(default)]
+    pub states: Vec<StateTransition>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
