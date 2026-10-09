@@ -1,6 +1,6 @@
 [package]
 name = "rustploy-shared"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "Shared types and protocol definitions for the Rustploy PaaS platform"
 license = "MIT"

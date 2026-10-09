@@ -6,8 +6,8 @@
 //! projeto, nome e o que fazer com cada conflito. Ver
 //! `docs/plano-copiar-servico-entre-servidores.md`.
 //!
-//! Este módulo é só o FORMATO e as conversões puras (spec ⇄ pacote); os
-//! comandos de export/import vivem no daemon.
+//! Este módulo é o FORMATO, as conversões puras (spec ⇄ pacote) e os tipos de
+//! pedido/resposta dos comandos de export/import; a lógica deles vive no daemon.
 
 use crate::manifest::{API_VERSION, SECRET_PREFIX, env_map_to_vars, env_vars_to_map};
 use crate::models::*;
@@ -75,8 +75,9 @@ impl ServiceBundle {
         }
 
         let mut service = crate::ServiceManifest::from_spec(svc, providers);
-        // Porta externa é alocada de novo pelo destino; a de cá não vale lá.
-        service.host_port = None;
+        // A porta externa de cá não vale lá: quem tinha uma pede "alocar" (0, o
+        // mesmo sentinela do `ServiceCreate`); quem não tinha continua sem.
+        service.host_port = service.host_port.map(|_| 0);
         let mut project_env = env_vars_to_map(project_env);
 
         if !include_values {
@@ -120,6 +121,130 @@ impl ServiceBundle {
     pub fn project_env_vars(&self) -> Vec<EnvVar> {
         env_map_to_vars(&self.project_env)
     }
+}
+
+// --------------------------------------------------------------------------
+// Protocolo: ServiceExportPlan / ServiceExport / ServiceImport
+// --------------------------------------------------------------------------
+
+/// Uma variável listada na tela de checkboxes do export.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PlanVar {
+    pub key: String,
+    /// `secret:NOME` — só a referência viaja, nunca o valor.
+    pub is_secret: bool,
+    /// Pré-marcar: o serviço cita esta variável por nome (`${VAR}`/`$VAR`).
+    /// Sempre `false` nas variáveis do serviço (essas vão todas).
+    pub suggested: bool,
+}
+
+/// Resposta de `ServiceExportPlan`: o que dá para levar, para a tela marcar.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ServiceExportPlan {
+    pub service_name: String,
+    pub project_name: String,
+    pub service_env: Vec<PlanVar>,
+    pub project_env: Vec<PlanVar>,
+    /// Origem por zip (ou outro motivo): não exportável. A tela mostra o texto
+    /// em vez do botão.
+    pub blocked: Option<String>,
+}
+
+/// O que fazer, no destino, com UMA variável de projeto trazida no pacote.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ProjectEnvChoice {
+    /// Nova → cria no projeto; em conflito → mantém a do destino (padrão).
+    #[default]
+    Keep,
+    /// Em conflito → troca a do projeto de destino pela do arquivo.
+    Overwrite,
+    /// Grava no env do serviço novo (que vence a do projeto), sem tocar no projeto.
+    ServiceOnly,
+    /// Não traz.
+    Ignore,
+}
+
+/// Pedido de `ServiceImport`. Tudo opcional que não for o YAML.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct ServiceImportReq {
+    pub yaml: String,
+    /// Projeto de destino: aquele em que o usuário está (sempre já existe — o
+    /// import é uma criação de serviço dentro do projeto, não cria projeto).
+    pub project_id: String,
+    /// Nome do serviço novo (padrão: o do pacote).
+    #[serde(default)]
+    pub name: Option<String>,
+    /// Não traz as rotas de domínio.
+    #[serde(default)]
+    pub drop_domains: bool,
+    /// Git provider do destino a usar (vence o referenciado por nome no pacote).
+    #[serde(default)]
+    pub git_provider_id: Option<String>,
+    /// Valores dos `${CHAVE}` do env do SERVIÇO (pacote exportado sem valores).
+    #[serde(default)]
+    pub vars: BTreeMap<String, String>,
+    /// Idem, das variáveis do PROJETO.
+    #[serde(default)]
+    pub project_vars: BTreeMap<String, String>,
+    /// Valores para secrets que não existem no projeto de destino.
+    #[serde(default)]
+    pub secrets: BTreeMap<String, String>,
+    /// Escolha por variável de projeto (ausente = [`ProjectEnvChoice::Keep`]).
+    #[serde(default)]
+    pub project_env: BTreeMap<String, ProjectEnvChoice>,
+    /// Deployar logo depois de criar (padrão: não).
+    #[serde(default)]
+    pub deploy: bool,
+    /// Só analisa e devolve o relatório; nada é criado nem gravado.
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ImportWarning {
+    /// Identificador estável (`data_not_copied`, `domains_dns`, …).
+    pub code: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ProjectEnvState {
+    /// Não existe no projeto de destino.
+    New,
+    /// Já existe, com o mesmo valor.
+    Same,
+    /// Já existe, com outro valor.
+    Conflict,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ProjectEnvStatus {
+    pub key: String,
+    pub state: ProjectEnvState,
+    pub is_secret: bool,
+    /// A escolha efetivamente aplicada (a do pedido, ou o padrão).
+    pub choice: ProjectEnvChoice,
+}
+
+/// Resposta de `ServiceImport` (também no `dry_run`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct ServiceImportReport {
+    pub dry_run: bool,
+    /// `Some` só quando o serviço foi de fato criado.
+    pub service_id: Option<String>,
+    /// Nome final do serviço (o do pedido, ou o do pacote).
+    pub service_name: String,
+    pub project_name: String,
+    /// Já existe serviço com esse nome no projeto (bloqueia a criação).
+    pub name_conflict: bool,
+    pub warnings: Vec<ImportWarning>,
+    pub missing_service_vars: Vec<String>,
+    pub missing_project_vars: Vec<String>,
+    pub missing_secrets: Vec<String>,
+    /// Provider git do pacote que não existe no destino (nem foi escolhido outro).
+    pub missing_git_provider: Option<String>,
+    pub project_env: Vec<ProjectEnvStatus>,
+    pub deployed: bool,
 }
 
 /// Todo valor `Plain` vira `${CHAVE}`; `secret:` passa intacto.
@@ -325,8 +450,9 @@ mod tests {
         assert_eq!(volta.env_vars.len(), 3);
         // O que não viaja:
         assert_eq!(
-            volta.host_port, None,
-            "porta externa é do servidor de origem"
+            volta.host_port,
+            Some(0),
+            "porta externa é do servidor de origem: o destino aloca outra"
         );
         assert!(
             volta.pre_deploy_job_ids.is_empty(),

@@ -3,6 +3,7 @@
 
 use crate::manifest::ApplyReport;
 use crate::models::*;
+use crate::service_bundle::{ServiceExportPlan, ServiceImportReport, ServiceImportReq};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -211,6 +212,28 @@ pub enum Command {
         prune: bool,
         deploy: bool,
     },
+
+    // Pacote de serviço (copiar um serviço entre servidores) — ver
+    // `docs/plano-copiar-servico-entre-servidores.md`.
+    /// O que dá para levar do serviço: suas variáveis e as do projeto (com a
+    /// sugestão de pré-marcação). Nunca devolve valores. Resposta:
+    /// `ServiceExportPlan`.
+    ServiceExportPlan {
+        service_id: String,
+    },
+    /// Gera o pacote (YAML) do serviço. `project_env_keys` são as variáveis do
+    /// projeto marcadas pelo usuário (as demais não entram no arquivo);
+    /// `include_values: false` leva só os nomes (`${CHAVE}`). Resposta:
+    /// `ServiceBundleYaml`.
+    ServiceExport {
+        service_id: String,
+        include_values: bool,
+        #[serde(default)]
+        project_env_keys: Vec<String>,
+    },
+    /// Cria UM serviço novo a partir de um pacote, sem sobrescrever nada.
+    /// `dry_run` só devolve o relatório. Resposta: `ServiceImportReport`.
+    ServiceImport(ServiceImportReq),
 
     // Jobs (tarefas one-shot via docker-compose, agendadas ou manuais)
     JobCreate {
@@ -615,6 +638,15 @@ pub enum Response {
         yaml: String,
         dotenv: String,
     },
+    /// Resposta de `ServiceExportPlan`.
+    ServiceExportPlan(ServiceExportPlan),
+    /// Resposta de `ServiceExport`: o pacote e um nome de arquivo sugerido.
+    ServiceBundleYaml {
+        yaml: String,
+        filename: String,
+    },
+    /// Resposta de `ServiceImport` (inclusive o `dry_run`).
+    ServiceImportReport(ServiceImportReport),
     /// `${VAR}` sem valor correspondente no `.env` (resposta de
     /// `ManifestImport` quando faltam variáveis) — nada foi aplicado.
     MissingEnvVars(Vec<String>),
