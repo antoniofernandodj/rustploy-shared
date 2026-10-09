@@ -6,6 +6,7 @@ pub mod connection;
 pub mod manifest;
 pub mod models;
 pub mod protocol;
+pub mod service_bundle;
 pub mod templates;
 pub mod wizard;
 
@@ -189,5 +190,6 @@ pub use manifest::{
     format_dotenv, format_env_doc, parse_dotenv, parse_env_doc,
 };
 pub use models::*;
+pub use service_bundle::{BUNDLE_KIND, BundleOrigin, ServiceBundle, suggested_project_vars};
 pub use protocol::{Command, Event, Response};
 pub use wizard::WizardCreateReq;

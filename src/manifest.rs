@@ -167,7 +167,7 @@ pub struct ProjectMeta {
     pub env: BTreeMap<String, String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct ServiceManifest {
     pub name: String,
     pub source: SourceManifest,
@@ -179,8 +179,16 @@ pub struct ServiceManifest {
     pub domain: Option<String>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub tls: bool,
+    /// Rotas de domínio (várias, cada uma com porta/TLS próprios — ver
+    /// `ServiceSpec::domains`). Convive com o `domain`/`tls` legado: os dois são
+    /// copiados como estão, sem fundir, para o ida-e-volta ser exato.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub domains: Vec<DomainRoute>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub env: BTreeMap<String, String>,
+    /// Comentários do editor `.env`, ancorados por chave (ver `EnvComment`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub env_comments: Vec<EnvComment>,
     /// Cada item: `host:container` ou `host:container:ro`.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub volumes: Vec<String>,
@@ -204,7 +212,7 @@ pub struct ServiceManifest {
 }
 
 /// Origem do serviço: exatamente uma das três chaves deve estar presente.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct SourceManifest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub registry: Option<String>,
@@ -218,7 +226,7 @@ pub struct SourceManifest {
     pub compose_ingress: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct GitManifest {
     pub url: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -246,7 +254,7 @@ pub struct GitManifest {
     pub provider: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HealthcheckManifest {
     /// `none` | `tcp` | `http` | `docker`
     #[serde(rename = "type", default = "default_hc_type")]
@@ -265,7 +273,7 @@ pub struct HealthcheckManifest {
     pub start_period: Option<u32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct ResourcesManifest {
     #[serde(default, skip_serializing_if = "is_zero_u64")]
     pub cpu_shares: u64,
@@ -457,7 +465,7 @@ impl ServiceManifest {
             domain: self.domain.clone(),
             tls_enabled: self.tls,
             env_vars: env_map_to_vars(&self.env),
-            env_comments: Vec::new(),
+            env_comments: self.env_comments.clone(),
             volumes: self
                 .volumes
                 .iter()
@@ -477,9 +485,7 @@ impl ServiceManifest {
             run_command: self.command.clone(),
             run_args: self.args.clone(),
             db_kind: self.db.clone(),
-            // TODO(multi-domain): o manifesto ainda carrega só o `domain` legado;
-            // o campo `domains` fica vazio no import/export.
-            domains: vec![],
+            domains: self.domains.clone(),
             // TODO(pre-deploy-gate): o manifesto ainda não expõe o pré-deploy
             // check; fica vazio no import/export.
             pre_deploy_job_id: None,
@@ -497,7 +503,9 @@ impl ServiceManifest {
             host_port: spec.host_port,
             domain: spec.domain.clone(),
             tls: spec.tls_enabled,
+            domains: spec.domains.clone(),
             env: env_vars_to_map(&spec.env_vars),
+            env_comments: spec.env_comments.clone(),
             volumes: spec.volumes.iter().map(format_volume).collect(),
             healthcheck: HealthcheckManifest::from_healthcheck(&spec.healthcheck),
             replicas: spec.replicas.max(1),
@@ -666,9 +674,9 @@ impl GitProviderDoc {
 
 pub const API_VERSION: &str = "rustploy/v1";
 
-const SECRET_PREFIX: &str = "secret:";
+pub(crate) const SECRET_PREFIX: &str = "secret:";
 
-fn env_map_to_vars(map: &BTreeMap<String, String>) -> Vec<EnvVar> {
+pub(crate) fn env_map_to_vars(map: &BTreeMap<String, String>) -> Vec<EnvVar> {
     map.iter()
         .map(|(k, v)| EnvVar {
             key: k.clone(),
@@ -680,7 +688,7 @@ fn env_map_to_vars(map: &BTreeMap<String, String>) -> Vec<EnvVar> {
         .collect()
 }
 
-fn env_vars_to_map(vars: &[EnvVar]) -> BTreeMap<String, String> {
+pub(crate) fn env_vars_to_map(vars: &[EnvVar]) -> BTreeMap<String, String> {
     vars.iter()
         .map(|e| {
             let v = match &e.value {
