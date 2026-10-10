@@ -686,8 +686,8 @@ pub enum Response {
     /// `IngressReconcile` — o reconcile devolve a tabela já recalculada).
     IngressRoutes(IngressSnapshot),
 
-    /// Catálogos do wizard, prontos como JSON para o contexto (`ns_dbs`,
-    /// `ns_brokers`, `ns_templates`). Resposta de `WizardCatalog`.
+    /// Catálogos do wizard, prontos como JSON para o contexto (`new_service_databases`,
+    /// `new_service_brokers`, `new_service_templates`). Resposta de `WizardCatalog`.
     WizardCatalog {
         dbs: String,
         brokers: String,
