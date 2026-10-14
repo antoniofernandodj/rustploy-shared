@@ -295,6 +295,18 @@ pub enum Command {
     GetJobLogs {
         job_run_id: String,
     },
+    /// Fonte única da verdade de "este job está quente?": confere se as imagens
+    /// e o cache de build dele ainda estão no host. Resposta: `JobWarmStatus`.
+    JobWarmStatus {
+        job_id: String,
+    },
+    /// Aquece o job (baixa as imagens que faltam e popula o cache de build) sem
+    /// executá-lo. Já quente: não faz nada e avisa. Senão a vaga única da fila
+    /// é disputada em segundo plano e o fim chega em `Event::JobWarmChanged`.
+    /// Resposta: `JobWarmRequested`.
+    JobWarm {
+        job_id: String,
+    },
 
     // Docker cleanup
     PruneContainers,
@@ -540,6 +552,14 @@ pub enum Event {
         at: chrono::DateTime<chrono::Utc>,
         results: Vec<DockerCleanupResourceResult>,
     },
+    /// Um aquecimento de job começou (`warming: true`) ou terminou
+    /// (`warming: false`, com `success` e, na falha, `error`).
+    JobWarmChanged {
+        job_id: String,
+        warming: bool,
+        success: Option<bool>,
+        error: Option<String>,
+    },
 }
 
 impl Event {
@@ -567,7 +587,8 @@ impl Event {
             | Event::JobLogLine { .. }
             | Event::JobRunStateChanged { .. }
             | Event::DeployQueueChanged
-            | Event::DockerCleanupCompleted { .. } => true,
+            | Event::DockerCleanupCompleted { .. }
+            | Event::JobWarmChanged { .. } => true,
         }
     }
 }
@@ -706,6 +727,13 @@ pub enum Response {
     /// Log de uma execução (resposta de `GetJobLogs`) — reaproveita
     /// `BuildLogLine`, mesma forma de linha (stream + texto + timestamp).
     JobLogs(Vec<BuildLogLine>),
+    /// Resposta de `JobWarmStatus`.
+    JobWarmStatus(JobWarmStatus),
+    /// Resposta de `JobWarm`: `already_warm` = nada foi disparado porque o job
+    /// já estava quente.
+    JobWarmRequested {
+        already_warm: bool,
+    },
 
     // Registry OCI embutido
     RegistryStatus(RegistryStatusInfo),

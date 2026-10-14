@@ -1209,6 +1209,33 @@ pub struct JobSummary {
     /// `None` quando `job.trigger_service_id` é `None` (job autônomo).
     pub trigger_service_name: Option<String>,
     pub last_run: Option<JobRun>,
+    /// `#[serde(default)]`: um daemon mais antigo não manda a chave.
+    #[serde(default)]
+    pub warm: JobWarmStatus,
+}
+
+/// Se as imagens e o cache de build de um job já estão no host, de modo que a
+/// próxima execução não baixe nem recompile do zero. Fonte única da verdade
+/// (`Command::JobWarmStatus`, também embutida em `JobSummary`): as telas só
+/// exibem este valor, nunca o deduzem.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct JobWarmStatus {
+    pub job_id: String,
+    pub warm: bool,
+    /// Há um aquecimento em andamento (ou esperando a vaga da fila) agora.
+    pub warming: bool,
+    /// Por que está frio (`warm == false`): nunca aquecido, imagem ausente,
+    /// cache de build limpo, definição do job alterada. `None` quando quente.
+    pub reason: Option<String>,
+    /// Quando o job foi aquecido pela última vez (aquecimento explícito ou
+    /// execução bem-sucedida).
+    pub warmed_at: Option<DateTime<Utc>>,
+}
+
+pub const DEFAULT_CLEANUP_RETENTION_HOURS: u32 = 168;
+
+fn default_cleanup_retention_hours() -> u32 {
+    DEFAULT_CLEANUP_RETENTION_HOURS
 }
 
 /// Configuração de limpeza automática de recursos Docker não usados
@@ -1231,6 +1258,16 @@ pub struct DockerCleanupConfig {
     pub volumes_all: bool,
     pub networks: bool,
     pub build_cache: bool,
+    /// Só remove cache de build sem uso há mais de N horas; `0` remove tudo
+    /// (comportamento anterior). `#[serde(default)]`: a config já salva não
+    /// tem a chave, e sem default o parse falharia e a config voltaria ao
+    /// padrão (desligada).
+    #[serde(default = "default_cleanup_retention_hours")]
+    pub build_cache_older_than_hours: u32,
+    /// Só remove imagens criadas há mais de N horas; `0` sem filtro. O filtro
+    /// do Docker usa a data de CRIAÇÃO da imagem, não a do último uso.
+    #[serde(default = "default_cleanup_retention_hours")]
+    pub images_older_than_hours: u32,
     /// `#[serde(default)]`: os clientes (Luau/JS) mandam a chave inteira ao
     /// fazer round-trip do valor recebido, mas o formulário de criação (antes
     /// do primeiro `Get`) pode omiti-la de vez — mesma convenção de
@@ -1259,6 +1296,8 @@ impl Default for DockerCleanupConfig {
             volumes_all: false,
             networks: false,
             build_cache: false,
+            build_cache_older_than_hours: DEFAULT_CLEANUP_RETENTION_HOURS,
+            images_older_than_hours: DEFAULT_CLEANUP_RETENTION_HOURS,
             last_run_at: None,
             next_run_at: None,
         }
@@ -1309,6 +1348,49 @@ pub struct DockerCleanupLastRun {
 #[cfg(test)]
 mod job_tests {
     use super::*;
+
+    #[test]
+    fn docker_cleanup_config_saved_before_retention_fields_keeps_its_values() {
+        let config = DockerCleanupConfig {
+            enabled: true,
+            build_cache: true,
+            ..DockerCleanupConfig::default()
+        };
+        let mut json = serde_json::to_value(&config).unwrap();
+        let object = json.as_object_mut().unwrap();
+        object.remove("build_cache_older_than_hours");
+        object.remove("images_older_than_hours");
+
+        let loaded: DockerCleanupConfig = serde_json::from_value(json).unwrap();
+
+        assert!(
+            loaded.enabled && loaded.build_cache,
+            "config antiga não pode resetar"
+        );
+        assert_eq!(
+            loaded.build_cache_older_than_hours,
+            DEFAULT_CLEANUP_RETENTION_HOURS
+        );
+        assert_eq!(
+            loaded.images_older_than_hours,
+            DEFAULT_CLEANUP_RETENTION_HOURS
+        );
+    }
+
+    #[test]
+    fn job_summary_from_older_daemon_has_cold_default_warm_status() {
+        let status: JobWarmStatus = serde_json::from_str(
+            r#"{"job_id":"j","warm":false,"warming":false,"reason":null,"warmed_at":null}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            status,
+            JobWarmStatus {
+                job_id: "j".into(),
+                ..JobWarmStatus::default()
+            }
+        );
+    }
 
     #[test]
     fn interval_advances_by_hours() {
