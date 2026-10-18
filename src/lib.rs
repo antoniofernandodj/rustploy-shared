@@ -101,7 +101,9 @@ pub fn app_network_alias(svc_name: &str) -> String {
 /// string de quem já usa o servidor também não muda.
 /// Ver `docs/plano-banco-compartilhado.md` §2.3.
 pub fn shared_alias(compose_project: &str) -> String {
-    let rest = compose_project.strip_prefix("rp_").unwrap_or(compose_project);
+    let rest = compose_project
+        .strip_prefix("rp_")
+        .unwrap_or(compose_project);
     format!("rp-shared-{}", rest.replace('_', "-"))
 }
 
@@ -114,8 +116,14 @@ mod tests_shared_alias {
 
     #[test]
     fn alias_global_sem_underscore() {
-        assert_eq!(shared_alias("rp_01j9k2ab_meu_banco"), "rp-shared-01j9k2ab-meu-banco");
-        assert_eq!(shared_alias("rp_01j9k2ab_postgres"), "rp-shared-01j9k2ab-postgres");
+        assert_eq!(
+            shared_alias("rp_01j9k2ab_meu_banco"),
+            "rp-shared-01j9k2ab-meu-banco"
+        );
+        assert_eq!(
+            shared_alias("rp_01j9k2ab_postgres"),
+            "rp-shared-01j9k2ab-postgres"
+        );
     }
 }
 
@@ -190,10 +198,10 @@ pub use manifest::{
     format_dotenv, format_env_doc, parse_dotenv, parse_env_doc,
 };
 pub use models::*;
+pub use protocol::{Command, Event, Response};
 pub use service_bundle::{
     BUNDLE_KIND, BundleOrigin, ImportWarning, PlanVar, ProjectEnvChoice, ProjectEnvState,
     ProjectEnvStatus, ServiceBundle, ServiceExportPlan, ServiceImportReport, ServiceImportReq,
     suggested_project_vars,
 };
-pub use protocol::{Command, Event, Response};
 pub use wizard::WizardCreateReq;

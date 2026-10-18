@@ -179,7 +179,9 @@ fn main() {
 
 /// `meta-entry.json` (só alguns blueprints têm) traz description/logo melhores.
 fn read_meta(dir: &Path, id: &str) -> (String, String) {
-    let default_logo = find_logo(dir).or_else(|| logo_from_list(id)).unwrap_or_default();
+    let default_logo = find_logo(dir)
+        .or_else(|| logo_from_list(id))
+        .unwrap_or_default();
     let meta_path = dir.join("meta-entry.json");
     let Ok(s) = std::fs::read_to_string(&meta_path) else {
         return (String::new(), default_logo);

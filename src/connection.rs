@@ -88,15 +88,26 @@ pub fn connection_url(db_kind: Option<&str>, t: &ConnTarget<'_>) -> String {
 pub fn credentials(
     db_kind: Option<&str>,
     get: impl Fn(&str) -> Option<String>,
-) -> (Option<String>, Option<String>, Option<String>, Option<&'static str>) {
+) -> (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<&'static str>,
+) {
     let g = |k: &str| get(k).filter(|v| !v.is_empty());
     match db_kind.map(str::to_ascii_lowercase).as_deref() {
-        Some("postgres" | "postgresql") => {
-            (g("POSTGRES_DB"), g("POSTGRES_USER"), g("POSTGRES_PASSWORD"), None)
-        }
-        Some("mysql" | "mariadb") => {
-            (g("MYSQL_DATABASE"), g("MYSQL_USER"), g("MYSQL_PASSWORD"), None)
-        }
+        Some("postgres" | "postgresql") => (
+            g("POSTGRES_DB"),
+            g("POSTGRES_USER"),
+            g("POSTGRES_PASSWORD"),
+            None,
+        ),
+        Some("mysql" | "mariadb") => (
+            g("MYSQL_DATABASE"),
+            g("MYSQL_USER"),
+            g("MYSQL_PASSWORD"),
+            None,
+        ),
         Some("mongodb" | "mongo") => (
             None,
             g("MONGO_INITDB_ROOT_USERNAME"),
@@ -104,7 +115,12 @@ pub fn credentials(
             Some("admin"),
         ),
         Some("redis") => (None, None, g("REDIS_PASSWORD"), None),
-        Some("rabbitmq") => (None, g("RABBITMQ_DEFAULT_USER"), g("RABBITMQ_DEFAULT_PASS"), None),
+        Some("rabbitmq") => (
+            None,
+            g("RABBITMQ_DEFAULT_USER"),
+            g("RABBITMQ_DEFAULT_PASS"),
+            None,
+        ),
         _ => (None, None, None, None),
     }
 }
@@ -200,7 +216,10 @@ pub fn validate_shared_rules(
     db_kind: Option<&str>,
     shared: bool,
 ) -> Result<(), String> {
-    let reserved = |n: &str| n.to_ascii_lowercase().starts_with(crate::SHARED_ALIAS_PREFIX);
+    let reserved = |n: &str| {
+        n.to_ascii_lowercase()
+            .starts_with(crate::SHARED_ALIAS_PREFIX)
+    };
     if reserved(name) {
         return Err(format!(
             "o prefixo \"{}\" é reservado para bancos compartilhados",
@@ -208,7 +227,9 @@ pub fn validate_shared_rules(
         ));
     }
     if let crate::ServiceSource::Compose(c) = source
-        && let Some((k, _)) = compose_services(&c.content).iter().find(|(k, _)| reserved(k))
+        && let Some((k, _)) = compose_services(&c.content)
+            .iter()
+            .find(|(k, _)| reserved(k))
     {
         return Err(format!(
             "o serviço Compose \"{k}\" usa o prefixo reservado \"{}\"",
@@ -217,7 +238,9 @@ pub fn validate_shared_rules(
     }
     if shared {
         if !is_sql_or_mongo(db_kind) {
-            return Err("só Postgres, MySQL, MariaDB e MongoDB podem ser servidor compartilhado".into());
+            return Err(
+                "só Postgres, MySQL, MariaDB e MongoDB podem ser servidor compartilhado".into(),
+            );
         }
         if !matches!(source, crate::ServiceSource::Compose(_)) {
             return Err("servidor compartilhado precisa ser um serviço Compose".into());
@@ -231,7 +254,11 @@ mod tests {
     use super::*;
 
     fn t<'a>(h: &'a str, p: u16) -> ConnTarget<'a> {
-        ConnTarget { host: h, port: p, ..Default::default() }
+        ConnTarget {
+            host: h,
+            port: p,
+            ..Default::default()
+        }
     }
 
     #[test]
@@ -245,27 +272,66 @@ mod tests {
                 ..t("rp-shared-x-postgres", 5432)
             },
         );
-        assert_eq!(u, "postgresql://app:p%40ss%3Aw%2Frd@rp-shared-x-postgres:5432/app");
+        assert_eq!(
+            u,
+            "postgresql://app:p%40ss%3Aw%2Frd@rp-shared-x-postgres:5432/app"
+        );
     }
 
     #[test]
     fn mariadb_usa_esquema_mysql() {
-        let u = connection_url(Some("mariadb"), &ConnTarget { user: Some("u"), password: Some("p"), database: Some("d"), ..t("h", 3306) });
+        let u = connection_url(
+            Some("mariadb"),
+            &ConnTarget {
+                user: Some("u"),
+                password: Some("p"),
+                database: Some("d"),
+                ..t("h", 3306)
+            },
+        );
         assert_eq!(u, "mysql://u:p@h:3306/d");
     }
 
     #[test]
     fn mongo_auth_source_e_o_database() {
-        let u = connection_url(Some("mongodb"), &ConnTarget { user: Some("u"), password: Some("p"), database: Some("proj"), ..t("h", 27017) });
+        let u = connection_url(
+            Some("mongodb"),
+            &ConnTarget {
+                user: Some("u"),
+                password: Some("p"),
+                database: Some("proj"),
+                ..t("h", 27017)
+            },
+        );
         assert_eq!(u, "mongodb://u:p@h:27017/proj?authSource=proj");
-        let root = connection_url(Some("mongodb"), &ConnTarget { user: Some("root"), password: Some("p"), auth_source: Some("admin"), ..t("h", 27017) });
+        let root = connection_url(
+            Some("mongodb"),
+            &ConnTarget {
+                user: Some("root"),
+                password: Some("p"),
+                auth_source: Some("admin"),
+                ..t("h", 27017)
+            },
+        );
         assert_eq!(root, "mongodb://root:p@h:27017/?authSource=admin");
     }
 
     #[test]
     fn sem_credenciais_e_sem_esquema() {
-        assert_eq!(connection_url(Some("postgres"), &t("h", 5432)), "postgresql://h:5432");
-        assert_eq!(connection_url(Some("redis"), &ConnTarget { password: Some("s"), ..t("h", 6379) }), "redis://:s@h:6379");
+        assert_eq!(
+            connection_url(Some("postgres"), &t("h", 5432)),
+            "postgresql://h:5432"
+        );
+        assert_eq!(
+            connection_url(
+                Some("redis"),
+                &ConnTarget {
+                    password: Some("s"),
+                    ..t("h", 6379)
+                }
+            ),
+            "redis://:s@h:6379"
+        );
         assert_eq!(connection_url(Some("kafka"), &t("h", 9092)), "h:9092");
         assert_eq!(connection_url(None, &t("h", 80)), "http://h:80");
     }
@@ -275,20 +341,50 @@ mod tests {
     #[test]
     fn prefixo_reservado_e_shared_so_em_banco() {
         use crate::{ComposeSource, ServiceSource};
-        let c = |y: &str| ServiceSource::Compose(ComposeSource { content: y.into(), ingress_service: None });
+        let c = |y: &str| {
+            ServiceSource::Compose(ComposeSource {
+                content: y.into(),
+                ingress_service: None,
+            })
+        };
         assert!(validate_shared_rules("ok", &c(YAML), Some("postgres"), true).is_ok());
         assert!(validate_shared_rules("rp-shared-x", &c(YAML), None, false).is_err());
-        assert!(validate_shared_rules("ok", &c("services:\n  rp-shared-a:\n    image: x\n"), None, false).is_err());
+        assert!(
+            validate_shared_rules(
+                "ok",
+                &c("services:\n  rp-shared-a:\n    image: x\n"),
+                None,
+                false
+            )
+            .is_err()
+        );
         assert!(validate_shared_rules("ok", &c(YAML), Some("redis"), true).is_err());
-        assert!(validate_shared_rules("ok", &ServiceSource::Registry { image: "x".into() }, Some("postgres"), true).is_err());
+        assert!(
+            validate_shared_rules(
+                "ok",
+                &ServiceSource::Registry { image: "x".into() },
+                Some("postgres"),
+                true
+            )
+            .is_err()
+        );
     }
 
     #[test]
     fn compose_host_regras() {
-        assert_eq!(compose_host(YAML, Some("pooler"), Some("postgres")).as_deref(), Some("pooler"));
-        assert_eq!(compose_host(YAML, None, Some("postgres")).as_deref(), Some("db"));
+        assert_eq!(
+            compose_host(YAML, Some("pooler"), Some("postgres")).as_deref(),
+            Some("pooler")
+        );
+        assert_eq!(
+            compose_host(YAML, None, Some("postgres")).as_deref(),
+            Some("db")
+        );
         assert_eq!(compose_host(YAML, None, None), None);
-        assert_eq!(compose_host("services:\n  rp_db:\n    image: x\n", None, None).as_deref(), Some("rp_db"));
+        assert_eq!(
+            compose_host("services:\n  rp_db:\n    image: x\n", None, None).as_deref(),
+            Some("rp_db")
+        );
         assert_eq!(compose_host("image: x", None, None), None);
     }
 }
