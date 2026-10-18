@@ -614,6 +614,7 @@ pub struct BuildLogLine {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum Response {
     Ok,
     Project(Project),

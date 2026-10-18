@@ -305,10 +305,10 @@ impl RustployConfig {
         ];
 
         for path in paths.into_iter().flatten() {
-            if let Ok(contents) = std::fs::read_to_string(&path) {
-                if let Ok(cfg) = toml::from_str(&contents) {
-                    return Self::apply_env_overrides(cfg);
-                }
+            if let Ok(contents) = std::fs::read_to_string(&path)
+                && let Ok(cfg) = toml::from_str(&contents)
+            {
+                return Self::apply_env_overrides(cfg);
             }
         }
 
@@ -322,10 +322,10 @@ impl RustployConfig {
         if let Ok(v) = std::env::var("RUSTPLOY_LOG_LEVEL") {
             cfg.daemon.log_level = v;
         }
-        if let Ok(v) = std::env::var("RUSTPLOY_HTTP_PORT") {
-            if let Ok(p) = v.parse() {
-                cfg.ingress.http_port = p;
-            }
+        if let Ok(v) = std::env::var("RUSTPLOY_HTTP_PORT")
+            && let Ok(p) = v.parse()
+        {
+            cfg.ingress.http_port = p;
         }
         // HTTP/JSON + SSE control API.
         if let Ok(v) = std::env::var("RUSTPLOY_API_ENABLED") {
@@ -334,10 +334,10 @@ impl RustployConfig {
         if let Ok(v) = std::env::var("RUSTPLOY_API_BIND") {
             cfg.api.bind_address = v;
         }
-        if let Ok(v) = std::env::var("RUSTPLOY_API_PORT") {
-            if let Ok(p) = v.parse() {
-                cfg.api.port = p;
-            }
+        if let Ok(v) = std::env::var("RUSTPLOY_API_PORT")
+            && let Ok(p) = v.parse()
+        {
+            cfg.api.port = p;
         }
         if let Ok(v) = std::env::var("RUSTPLOY_API_TOKEN") {
             cfg.api.token = Some(v).filter(|s| !s.is_empty());
@@ -349,10 +349,10 @@ impl RustployConfig {
         if let Ok(v) = std::env::var("RUSTPLOY_REGISTRY_ENABLED") {
             cfg.registry.enabled = matches!(v.as_str(), "1" | "true" | "yes" | "on");
         }
-        if let Ok(v) = std::env::var("RUSTPLOY_REGISTRY_PORT") {
-            if let Ok(p) = v.parse() {
-                cfg.registry.port = p;
-            }
+        if let Ok(v) = std::env::var("RUSTPLOY_REGISTRY_PORT")
+            && let Ok(p) = v.parse()
+        {
+            cfg.registry.port = p;
         }
         if let Ok(v) = std::env::var("RUSTPLOY_REGISTRY_DOMAIN") {
             cfg.registry.domain = Some(v).filter(|s| !s.is_empty());

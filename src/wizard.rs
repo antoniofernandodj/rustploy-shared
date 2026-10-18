@@ -72,6 +72,7 @@ impl DbKind {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "postgres" => Some(Self::Postgres),
@@ -150,6 +151,7 @@ impl BrokerKind {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "kafka" => Some(Self::Kafka),

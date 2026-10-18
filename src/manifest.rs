@@ -797,21 +797,23 @@ where
     let bytes = input.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] == b'$' && i + 1 < bytes.len() && bytes[i + 1] == b'{' {
-            if let Some(end) = input[i + 2..].find('}') {
-                let name = &input[i + 2..i + 2 + end];
-                match lookup(name) {
-                    Some(val) => out.push_str(&val),
-                    None => {
-                        if !missing.contains(&name.to_string()) {
-                            missing.push(name.to_string());
-                        }
-                        out.push_str(&input[i..i + 2 + end + 1]); // mantém ${VAR}
+        if bytes[i] == b'$'
+            && i + 1 < bytes.len()
+            && bytes[i + 1] == b'{'
+            && let Some(end) = input[i + 2..].find('}')
+        {
+            let name = &input[i + 2..i + 2 + end];
+            match lookup(name) {
+                Some(val) => out.push_str(&val),
+                None => {
+                    if !missing.contains(&name.to_string()) {
+                        missing.push(name.to_string());
                     }
+                    out.push_str(&input[i..i + 2 + end + 1]); // mantém ${VAR}
                 }
-                i += 2 + end + 1;
-                continue;
             }
+            i += 2 + end + 1;
+            continue;
         }
         out.push(bytes[i] as char);
         i += 1;
@@ -860,11 +862,11 @@ fn humanize_mem(bytes: u64) -> String {
     const G: u64 = 1024 * 1024 * 1024;
     const M: u64 = 1024 * 1024;
     const K: u64 = 1024;
-    if bytes % G == 0 {
+    if bytes.is_multiple_of(G) {
         format!("{}g", bytes / G)
-    } else if bytes % M == 0 {
+    } else if bytes.is_multiple_of(M) {
         format!("{}m", bytes / M)
-    } else if bytes % K == 0 {
+    } else if bytes.is_multiple_of(K) {
         format!("{}k", bytes / K)
     } else {
         bytes.to_string()

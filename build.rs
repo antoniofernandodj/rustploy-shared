@@ -3,7 +3,7 @@
 //!
 //! Cada blueprint tem:
 //!   - `template.toml`      — `[variables]`, `[config.env]`, `[[config.domains]]`,
-//!                            `[[config.mounts]]` (formato Dokploy).
+//!     `[[config.mounts]]` (formato Dokploy).
 //!   - `docker-compose.yml` — o compose de fato (embutido via `include_str!`).
 //!   - um logo (svg/png/…)  — só o nome do arquivo é registrado.
 //!

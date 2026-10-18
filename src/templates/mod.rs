@@ -89,7 +89,7 @@ pub fn filtered(search: &str) -> Vec<&'static Template> {
                 || t.id.contains(&search)
         })
         .collect();
-    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    out.sort_by_key(|a| a.name.to_lowercase());
     out
 }
 
@@ -496,6 +496,40 @@ impl Rng {
     }
 }
 
+/// Base64 padrão (com padding), sem dependência externa.
+fn base64(data: &[u8]) -> String {
+    const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    base64_with(data, T, true)
+}
+
+/// Base64url **sem** padding (RFC 4648 §5) — o alfabeto que o JWS exige.
+fn base64_url(data: &[u8]) -> String {
+    const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    base64_with(data, T, false)
+}
+
+fn base64_with(data: &[u8], table: &[u8], pad: bool) -> String {
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
+    for chunk in data.chunks(3) {
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
+        let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
+        out.push(table[(n >> 18 & 63) as usize] as char);
+        out.push(table[(n >> 12 & 63) as usize] as char);
+        for (i, shift) in [(1usize, 6u32), (2, 0)] {
+            if chunk.len() > i {
+                out.push(table[(n >> shift & 63) as usize] as char);
+            } else if pad {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -657,38 +691,4 @@ mod tests {
         let ed = editable_vars(t);
         assert!(ed.iter().all(|v| v.key.contains("domain")));
     }
-}
-
-/// Base64 padrão (com padding), sem dependência externa.
-fn base64(data: &[u8]) -> String {
-    const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    base64_with(data, T, true)
-}
-
-/// Base64url **sem** padding (RFC 4648 §5) — o alfabeto que o JWS exige.
-fn base64_url(data: &[u8]) -> String {
-    const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-    base64_with(data, T, false)
-}
-
-fn base64_with(data: &[u8], table: &[u8], pad: bool) -> String {
-    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
-    for chunk in data.chunks(3) {
-        let b = [
-            chunk[0],
-            *chunk.get(1).unwrap_or(&0),
-            *chunk.get(2).unwrap_or(&0),
-        ];
-        let n = ((b[0] as u32) << 16) | ((b[1] as u32) << 8) | b[2] as u32;
-        out.push(table[(n >> 18 & 63) as usize] as char);
-        out.push(table[(n >> 12 & 63) as usize] as char);
-        for (i, shift) in [(1usize, 6u32), (2, 0)] {
-            if chunk.len() > i {
-                out.push(table[(n >> shift & 63) as usize] as char);
-            } else if pad {
-                out.push('=');
-            }
-        }
-    }
-    out
 }
