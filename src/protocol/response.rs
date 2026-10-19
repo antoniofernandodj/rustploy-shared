@@ -6,26 +6,25 @@ use serde::{Deserialize, Serialize};
 use super::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[allow(clippy::large_enum_variant)]
 pub enum Response {
     Ok,
-    Project(Project),
+    Project(Box<Project>),
     Projects(Vec<Project>),
-    Service(Service),
+    Service(Box<Service>),
     Services(Vec<Service>),
-    Deployment(Deployment),
+    Deployment(Box<Deployment>),
     Deployments(Vec<Deployment>),
     Logs(Vec<LogEntry>),
     BuildLogs(Vec<BuildLogLine>),
     DeploymentSummaries(Vec<DeploymentSummary>),
     DaemonStatus(DaemonStatus),
-    DeployEngineStatus(DeployEngineSummary),
+    DeployEngineStatus(Box<DeployEngineSummary>),
     Pong {
         uptime_secs: u64,
     },
     WebhookUrl(Option<String>),
     SharedAccessList(Vec<SharedAccess>),
-    Migration(Migration),
+    Migration(Box<Migration>),
     Migrations(Vec<Migration>),
     ManagedDatabases(Vec<ManagedDatabase>),
     ConnectionInfo {
@@ -60,14 +59,14 @@ pub enum Response {
         filename: String,
     },
     /// Resposta de `ServiceImport` (inclusive o `dry_run`).
-    ServiceImportReport(ServiceImportReport),
+    ServiceImportReport(Box<ServiceImportReport>),
     /// `${VAR}` sem valor correspondente no `.env` (resposta de
     /// `ManifestImport` quando faltam variáveis) — nada foi aplicado.
     MissingEnvVars(Vec<String>),
 
     // Git providers
     GitProviders(Vec<GitProvider>),
-    GitProviderInfo(GitProvider),
+    GitProviderInfo(Box<GitProvider>),
     /// Authorization URL the client should open (resposta de `GitOAuthStart`).
     OAuthUrl(String),
     GitRepos(Vec<GitRepo>),
@@ -112,7 +111,7 @@ pub enum Response {
     Snapshot(String),
 
     // Jobs
-    Job(Job),
+    Job(Box<Job>),
     Jobs(Vec<Job>),
     JobSummaries(Vec<JobSummary>),
     JobRun(JobRun),
