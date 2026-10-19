@@ -300,9 +300,16 @@ pub enum Command {
     /// Aquece o job (baixa as imagens que faltam e popula o cache de build) sem
     /// executá-lo. Já quente: não faz nada e avisa. Senão a vaga única da fila
     /// é disputada em segundo plano e o fim chega em `Event::JobWarmChanged`.
+    ///
+    /// `force = true` **reconstrói do zero** mesmo com o job quente: rebaixa as
+    /// imagens de registry e roda o build sem cache (`--no-cache --pull`), para
+    /// pegar imagem base nova ou refazer um `RUN` que buscou algo externo.
+    /// Ausente no JSON (clientes antigos) vale `false`.
     /// Resposta: `JobWarmRequested`.
     JobWarm {
         job_id: String,
+        #[serde(default)]
+        force: bool,
     },
 
     // Docker cleanup
@@ -476,4 +483,23 @@ pub enum Command {
     DeployQueuePause {
         paused: bool,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Command;
+
+    #[test]
+    fn job_warm_sem_force_vale_false() {
+        // Cliente antigo (GUI/webui/agente) não manda `force`.
+        let cmd: Command = serde_json::from_str(r#"{"JobWarm":{"job_id":"job_1"}}"#).unwrap();
+        assert!(matches!(cmd, Command::JobWarm { force: false, .. }));
+    }
+
+    #[test]
+    fn job_warm_com_force() {
+        let cmd: Command =
+            serde_json::from_str(r#"{"JobWarm":{"job_id":"job_1","force":true}}"#).unwrap();
+        assert!(matches!(cmd, Command::JobWarm { force: true, .. }));
+    }
 }
