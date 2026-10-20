@@ -273,3 +273,22 @@ pub struct ResourceLimits {
     pub cpu_shares: u64,
     pub mem_limit_bytes: u64,
 }
+
+/// Se a imagem de um serviço com fonte Git ou zip já tem o cache de build quente
+/// no host, de modo que o próximo deploy não baixe nem recompile tudo do zero.
+/// Fonte única da verdade (`Command::ServiceWarmStatusList`): as telas só exibem
+/// este valor, nunca o deduzem. Serviços de outras fontes (imagem pronta, etc.)
+/// não têm build e não aparecem.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct ServiceWarmStatus {
+    pub service_id: String,
+    pub warm: bool,
+    /// Há um aquecimento em andamento (ou esperando a vaga da fila) agora.
+    pub warming: bool,
+    /// Por que está frio (`warm == false`): nunca aquecido, imagem ausente,
+    /// cache de build limpo, fonte alterada. `None` quando quente.
+    pub reason: Option<String>,
+    /// Quando o serviço foi aquecido pela última vez (aquecimento explícito ou
+    /// deploy bem-sucedido).
+    pub warmed_at: Option<DateTime<Utc>>,
+}

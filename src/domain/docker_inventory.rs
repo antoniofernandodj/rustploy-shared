@@ -86,6 +86,10 @@ pub struct DockerNetworkInfo {
 
 pub const DEFAULT_CLEANUP_RETENTION_HOURS: u32 = 168;
 
+fn default_warm_after_cleanup() -> bool {
+    true
+}
+
 fn default_cleanup_retention_hours() -> u32 {
     DEFAULT_CLEANUP_RETENTION_HOURS
 }
@@ -120,6 +124,13 @@ pub struct DockerCleanupConfig {
     /// do Docker usa a data de CRIAÇÃO da imagem, não a do último uso.
     #[serde(default = "default_cleanup_retention_hours")]
     pub images_older_than_hours: u32,
+    /// Depois da limpeza, reconstrói a imagem de cada serviço com fonte Git ou
+    /// zip, na fila de deploy, pra o primeiro deploy do dia achar o cache de
+    /// build quente. `#[serde(default = ...)]`: a config já salva não tem a
+    /// chave e passa a valer `true` (o problema que isto resolve é de quem já
+    /// usa a limpeza).
+    #[serde(default = "default_warm_after_cleanup")]
+    pub warm_after_cleanup: bool,
     /// `#[serde(default)]`: os clientes (Luau/JS) mandam a chave inteira ao
     /// fazer round-trip do valor recebido, mas o formulário de criação (antes
     /// do primeiro `Get`) pode omiti-la de vez — mesma convenção de
@@ -150,6 +161,7 @@ impl Default for DockerCleanupConfig {
             build_cache: false,
             build_cache_older_than_hours: DEFAULT_CLEANUP_RETENTION_HOURS,
             images_older_than_hours: DEFAULT_CLEANUP_RETENTION_HOURS,
+            warm_after_cleanup: true,
             last_run_at: None,
             next_run_at: None,
         }

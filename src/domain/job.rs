@@ -199,6 +199,16 @@ mod job_tests {
     use super::*;
 
     #[test]
+    fn docker_cleanup_config_saved_before_warm_after_cleanup_warms_by_default() {
+        let mut json = serde_json::to_value(DockerCleanupConfig::default()).unwrap();
+        json.as_object_mut().unwrap().remove("warm_after_cleanup");
+
+        let loaded: DockerCleanupConfig = serde_json::from_value(json).unwrap();
+
+        assert!(loaded.warm_after_cleanup);
+    }
+
+    #[test]
     fn docker_cleanup_config_saved_before_retention_fields_keeps_its_values() {
         let config = DockerCleanupConfig {
             enabled: true,

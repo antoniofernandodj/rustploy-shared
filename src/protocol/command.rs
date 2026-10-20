@@ -312,6 +312,19 @@ pub enum Command {
         force: bool,
     },
 
+    /// O status de aquecimento (`ServiceWarmStatus`) de todos os serviços com
+    /// fonte Git ou zip. Resposta: `ServiceWarmStatuses`.
+    ServiceWarmStatusList,
+    /// Aquece o serviço: constrói a imagem dele na vaga única da fila, para o
+    /// próximo deploy achar o cache quente. Já quente: não faz nada e avisa
+    /// (a menos que `force`, que reconstrói sem cache). O fim chega em
+    /// `Event::ServiceWarmChanged`. Resposta: `ServiceWarmRequested`.
+    ServiceWarm {
+        service_id: String,
+        #[serde(default)]
+        force: bool,
+    },
+
     // Docker cleanup
     PruneContainers,
     /// `all=true` remove volumes mesmo que não sejam anônimos (equivalente ao

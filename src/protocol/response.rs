@@ -126,6 +126,13 @@ pub enum Response {
     JobWarmRequested {
         already_warm: bool,
     },
+    /// Resposta de `ServiceWarmStatusList`.
+    ServiceWarmStatuses(Vec<ServiceWarmStatus>),
+    /// Resposta de `ServiceWarm`: `already_warm` = nada foi disparado porque o
+    /// serviço já estava quente.
+    ServiceWarmRequested {
+        already_warm: bool,
+    },
 
     // Registry OCI embutido
     RegistryStatus(RegistryStatusInfo),

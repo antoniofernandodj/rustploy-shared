@@ -84,6 +84,15 @@ pub enum Event {
         success: Option<bool>,
         error: Option<String>,
     },
+    /// Um aquecimento de serviço começou (`warming: true`) ou terminou
+    /// (`warming: false`, com `success` e, na falha, `error`). Vale pra todos os
+    /// clientes (não filtra por serviço): a tela de lista precisa dele.
+    ServiceWarmChanged {
+        service_id: String,
+        warming: bool,
+        success: Option<bool>,
+        error: Option<String>,
+    },
 }
 
 impl Event {
@@ -112,7 +121,8 @@ impl Event {
             | Event::JobRunStateChanged { .. }
             | Event::DeployQueueChanged
             | Event::DockerCleanupCompleted { .. }
-            | Event::JobWarmChanged { .. } => true,
+            | Event::JobWarmChanged { .. }
+            | Event::ServiceWarmChanged { .. } => true,
         }
     }
 }
