@@ -3,9 +3,10 @@
 //! já que a conexão com o daemon cai no meio da instalação.
 
 use serde::{Deserialize, Serialize};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::{
     fs, io,
-    os::unix::fs::PermissionsExt,
     path::Path,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -66,6 +67,9 @@ pub fn write_outcome(path: &Path, outcome: &UpdateOutcome) -> io::Result<()> {
         &temporary,
         serde_json::to_vec_pretty(outcome).map_err(io::Error::other)?,
     )?;
+    // Legível por todos (o daemon, que não é root, precisa lê-lo). Permissão POSIX: no Windows, onde
+    // este módulo também compila (o app é compilado para lá), não há o que ajustar.
+    #[cfg(unix)]
     fs::set_permissions(&temporary, fs::Permissions::from_mode(0o644))?;
     fs::rename(&temporary, path)
 }
@@ -97,6 +101,7 @@ mod tests {
         );
         write_outcome(&path, &outcome).unwrap();
         assert_eq!(read_outcome(&path).unwrap(), Some(outcome));
+        #[cfg(unix)]
         assert_eq!(
             fs::metadata(&path).unwrap().permissions().mode() & 0o777,
             0o644
