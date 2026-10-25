@@ -103,6 +103,50 @@ pub fn select_package_assets(
     Ok((deb.clone(), signature.clone()))
 }
 
+/// A versão de um pacote, como a release a anuncia no nome do arquivo.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageVersion {
+    /// Como está no nome do `.deb` e no campo `Version` dele: `0.1.12-1`.
+    pub full: String,
+    /// Sem a revisão do pacote: `0.1.12`, a versão do crate e a que o programa em execução conhece.
+    pub upstream: String,
+}
+
+/// A versão do `.deb` de `package` para `architecture` que a release traz, lida do **nome do
+/// arquivo** (`<package>_<versão>_<arquitetura>.deb`), só entre os arquivos do repositório dado.
+///
+/// É isto que se compara com o programa em execução, e **não a tag da release**: a tag
+/// (`v0.1.18`) e a versão dos pacotes (`rustployd 0.1.12`, `rustploy-gui 0.1.23`) são numerações
+/// independentes. Comparar a tag com a versão do programa dizia "há versão nova" para sempre.
+pub fn package_version(
+    assets: &[ReleaseAsset],
+    repo: &str,
+    package: &str,
+    architecture: &str,
+) -> Option<PackageVersion> {
+    let allowed_prefix = format!("https://github.com/{repo}/releases/download/");
+    let name_start = format!("{package}_");
+    let name_end = format!("_{architecture}.deb");
+    assets
+        .iter()
+        .filter(|asset| asset.url.starts_with(&allowed_prefix))
+        .find_map(|asset| {
+            let middle = asset
+                .name
+                .strip_prefix(&name_start)?
+                .strip_suffix(&name_end)?;
+            // Tem de ser uma versão de pacote de verdade, não qualquer texto entre os sublinhados.
+            crate::dpkg_version::compare(middle, middle).ok()?;
+            let upstream = middle
+                .rsplit_once('-')
+                .map_or(middle, |(upstream, _)| upstream);
+            Some(PackageVersion {
+                full: middle.to_string(),
+                upstream: upstream.to_string(),
+            })
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -187,6 +231,44 @@ mod tests {
             asset.url = format!("https://evil.example/{}", asset.name);
         }
         assert!(select_package_assets(&hostile, "o/r", "rustployd", "amd64", "v1").is_err());
+    }
+
+    #[test]
+    fn the_package_version_comes_from_the_file_name_not_from_the_tag() {
+        // A tag é v0.1.16, mas o daemon que a release traz é o 0.1.10 (numerações independentes).
+        let assets = full_release("o/r");
+        let daemon = package_version(&assets, "o/r", "rustployd", "amd64").unwrap();
+        assert_eq!(daemon.full, "0.1.10-1");
+        assert_eq!(daemon.upstream, "0.1.10");
+        let gui = package_version(&assets, "o/r", "rustploy-gui", "amd64").unwrap();
+        assert_eq!(gui.upstream, "0.1.20");
+    }
+
+    #[test]
+    fn no_package_version_when_the_release_has_none_for_that_product_or_arch() {
+        let assets = full_release("o/r");
+        assert_eq!(
+            package_version(&assets, "o/r", "rustployd", "riscv64"),
+            None
+        );
+        assert_eq!(package_version(&assets, "o/r", "outro", "amd64"), None);
+        // De outro repositório não vale.
+        assert_eq!(
+            package_version(&full_release("atacante/repo"), "o/r", "rustployd", "amd64"),
+            None
+        );
+        // `rustploy` não casa com `rustploy-gui_…`.
+        assert_eq!(package_version(&assets, "o/r", "rustploy", "amd64"), None);
+    }
+
+    #[test]
+    fn a_file_name_whose_middle_is_not_a_version_is_ignored() {
+        let assets = vec![ReleaseAsset {
+            name: "rustployd_nao-e-versao_amd64.deb".into(),
+            url: "https://github.com/o/r/releases/download/v1/rustployd_nao-e-versao_amd64.deb"
+                .into(),
+        }];
+        assert_eq!(package_version(&assets, "o/r", "rustployd", "amd64"), None);
     }
 
     #[test]
