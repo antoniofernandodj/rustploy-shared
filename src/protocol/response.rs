@@ -19,6 +19,7 @@ pub enum Response {
     DeploymentSummaries(Vec<DeploymentSummary>),
     DaemonStatus(DaemonStatus),
     UpdateInfo(Box<UpdateInfo>),
+    UpdateProgress(Box<UpdateProgress>),
     DeployEngineStatus(Box<DeployEngineSummary>),
     Pong {
         uptime_secs: u64,

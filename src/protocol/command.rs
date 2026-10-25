@@ -413,6 +413,20 @@ pub enum Command {
         #[serde(default)]
         force: bool,
     },
+    /// Atualiza o daemon para a última release **estável** (a que o `CheckUpdate` vê): baixa o
+    /// pacote e a assinatura, tira um snapshot do banco e pede a instalação ao helper root, que
+    /// só instala o que estiver assinado. O daemon reinicia no meio; acompanhe com `UpdateStatus`.
+    /// Recusa se há deploy em andamento ou na fila, a menos que `allow_active_deploys`.
+    /// O agente MCP só pode usar se `[update] allow_agent_apply = true`. Resposta: `Ok`.
+    ApplyUpdate {
+        #[serde(default)]
+        allow_active_deploys: bool,
+    },
+    /// Estado da atualização em curso, ou o resultado da última. Resposta: `UpdateProgress`.
+    UpdateStatus,
+    /// Volta os binários para os do backup da última atualização (o único caminho que aceita
+    /// uma versão menor). Mesma trava do agente MCP que `ApplyUpdate`. Resposta: `Ok`.
+    UpdateRollback,
 
     // Git providers (Gitea OAuth2 / PAT)
     GitProviderList,
@@ -521,6 +535,17 @@ mod tests {
     fn check_update_sem_force_vale_false() {
         let cmd: Command = serde_json::from_str(r#"{"CheckUpdate":{}}"#).unwrap();
         assert!(matches!(cmd, Command::CheckUpdate { force: false }));
+    }
+
+    #[test]
+    fn apply_update_sem_flag_nao_ignora_deploys_ativos() {
+        let cmd: Command = serde_json::from_str(r#"{"ApplyUpdate":{}}"#).unwrap();
+        assert!(matches!(
+            cmd,
+            Command::ApplyUpdate {
+                allow_active_deploys: false
+            }
+        ));
     }
 
     #[test]
