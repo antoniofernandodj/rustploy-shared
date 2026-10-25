@@ -1,0 +1,13 @@
+[package]
+name = "rustploy-update-core"
+version = "0.1.0"
+edition = "2024"
+description = "Shared update logic for the Rustploy daemon and desktop app: release version comparison"
+license = "MIT"
+authors = ["Antonio Fernando <antoniofernando2723@gmail.com>"]
+repository = "https://github.com/antoniofernandodj/rustploy-shared"
+keywords = ["paas", "update"]
+categories = ["development-tools"]
+
+[dependencies]
+semver = "1"

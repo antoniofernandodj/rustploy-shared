@@ -14,6 +14,7 @@ mod registry;
 mod service;
 mod service_bundle;
 mod source;
+mod update;
 mod wizard;
 
 pub use database::*;
@@ -30,4 +31,5 @@ pub use registry::*;
 pub use service::*;
 pub use service_bundle::*;
 pub use source::*;
+pub use update::*;
 pub use wizard::*;

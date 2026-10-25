@@ -405,6 +405,14 @@ pub enum Command {
     Ping,
     DaemonStatus,
     DeployEngineStatus,
+    /// Pergunta ao GitHub se há release mais nova que o daemon. Só leitura: não instala nada.
+    /// O resultado fica em cache no daemon (o GitHub limita a API anônima a 60 req/h por IP);
+    /// `force` ignora o cache, mas o daemon ainda espaça consultas forçadas em ~1 min.
+    /// Resposta: `UpdateInfo` (ou `Err` com `UpdateCheckFailed` se o GitHub não responder).
+    CheckUpdate {
+        #[serde(default)]
+        force: bool,
+    },
 
     // Git providers (Gitea OAuth2 / PAT)
     GitProviderList,
@@ -507,6 +515,12 @@ mod tests {
         // Cliente antigo (GUI/webui/agente) não manda `force`.
         let cmd: Command = serde_json::from_str(r#"{"JobWarm":{"job_id":"job_1"}}"#).unwrap();
         assert!(matches!(cmd, Command::JobWarm { force: false, .. }));
+    }
+
+    #[test]
+    fn check_update_sem_force_vale_false() {
+        let cmd: Command = serde_json::from_str(r#"{"CheckUpdate":{}}"#).unwrap();
+        assert!(matches!(cmd, Command::CheckUpdate { force: false }));
     }
 
     #[test]
