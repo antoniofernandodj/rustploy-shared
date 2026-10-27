@@ -7,11 +7,17 @@
 use minisign_verify::{PublicKey, Signature};
 use std::fmt;
 
-/// Chaves públicas em que os updaters confiam: a atual e, na hora de rotacionar,
-/// a próxima (uma versão que já confia na nova é publicada **antes** de a antiga
-/// sair). Fonte: `keys/rustploy-update.pub` no agregador.
-pub const TRUSTED_PUBLIC_KEYS: &[&str] =
-    &["RWSWAQvUAwKjxh3dDwqvzjm9XPx/tEqDqrctDWMlwA22TgSzy/0V2kP/"];
+/// Chaves públicas em que os updaters confiam; qualquer uma delas basta. Há uma por
+/// máquina de onde se lança release, e cada uma é a reserva da outra: perdida ou
+/// vazada uma, a outra assina a versão que a remove. Uma chave nova só vale para
+/// quem já instalou uma versão que a traz, então essa versão sai assinada por uma
+/// chave antiga. Fonte: `keys/` no agregador (`docs/release.md`).
+pub const TRUSTED_PUBLIC_KEYS: &[&str] = &[
+    // Máquina 1, id C6A30203D40B0196 (`keys/rustploy-update.pub`).
+    "RWSWAQvUAwKjxh3dDwqvzjm9XPx/tEqDqrctDWMlwA22TgSzy/0V2kP/",
+    // Máquina 2, id 8C7A43C31526B2B5 (`keys/rustploy-update-maquina-2.pub`).
+    "RWS1siYVw0N6jJgNiQe25EyQakKI/4c7GBSUZZmydt0KUEXaUf8jHL1j",
+];
 
 /// O que a assinatura afirma sobre o arquivo assinado.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -220,10 +226,16 @@ mod tests {
     }
 
     #[test]
-    fn the_embedded_production_key_decodes() {
+    fn the_embedded_production_keys_decode_and_are_distinct() {
         for key in TRUSTED_PUBLIC_KEYS {
             assert!(PublicKey::from_base64(key).is_ok(), "{key}");
         }
+        // Uma chave repetida tiraria a reserva sem ninguém notar.
+        let mut unique = TRUSTED_PUBLIC_KEYS.to_vec();
+        unique.sort();
+        unique.dedup();
+        assert_eq!(unique.len(), TRUSTED_PUBLIC_KEYS.len());
+        assert!(TRUSTED_PUBLIC_KEYS.len() >= 2, "sem chave reserva");
     }
 
     #[test]
