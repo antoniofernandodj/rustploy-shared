@@ -45,6 +45,10 @@ pub enum Response {
         registry_domain: Option<String>,
     },
     SecretNames(Vec<String>),
+    /// Resposta de `Command::InfraAudit`: onde há valor em claro (sem o valor).
+    InfraAudit(Vec<PlaintextFinding>),
+    /// O valor de um secret, em resposta a `Command::SecretReveal`. Nunca vai em lista nem em snapshot.
+    SecretValue(String),
     ManifestReport(ApplyReport),
     /// Manifesto YAML serializado (resposta de `ManifestExport`).
     Manifest(String),

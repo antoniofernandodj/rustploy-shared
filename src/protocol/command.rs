@@ -3,6 +3,21 @@
 use crate::domain::*;
 use serde::{Deserialize, Serialize};
 
+/// As operações de [`Command::SecretMove`]. "Mover" = criar no destino e apagar na origem.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SecretMoveOp {
+    /// Env → secret. `service_id: Some` = env do serviço → secret do serviço; `None` = env do
+    /// projeto → secret do projeto. `name` é a chave da env, que passa a `Secret(name)`.
+    EnvToSecret,
+    /// Secret → env, no mesmo escopo. As envs que apontavam para o secret viram `Plain(valor)`; se
+    /// nenhuma apontava, cria-se uma env com chave = nome do secret.
+    SecretToEnv,
+    /// Secret de **serviço** → secret de projeto. Exige `service_id`.
+    ServiceSecretToProject,
+    /// Secret de **projeto** → secret de um serviço específico. Exige `service_id` (o destino).
+    ProjectSecretToService,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Command {
     // Projects
@@ -158,17 +173,49 @@ pub enum Command {
     },
 
     // Secrets
+    //
+    // Escopo: `service_id: None` = secret do **projeto**; `Some(id)` = secret **daquele serviço**
+    // (que, na resolução de uma env do serviço, vale antes do de projeto). Clientes antigos, que
+    // não mandam o campo, continuam falando só do escopo de projeto.
     SecretSet {
         project_id: String,
+        #[serde(default)]
+        service_id: Option<String>,
         name: String,
         value: String,
     },
     SecretDelete {
         project_id: String,
+        #[serde(default)]
+        service_id: Option<String>,
         name: String,
     },
     SecretList {
         project_id: String,
+        #[serde(default)]
+        service_id: Option<String>,
+    },
+    /// Devolve o **valor** de um secret (botão "ver valor"). Fica fora do MCP/`rpc` do agente e
+    /// grava uma linha de auditoria (quem, qual secret, quando — nunca o valor).
+    SecretReveal {
+        project_id: String,
+        #[serde(default)]
+        service_id: Option<String>,
+        name: String,
+    },
+    /// Lista o que está em claro (ou parece estar) no estado de infra — a trava para ligar a
+    /// sincronização com git, e o guia de "o que ainda falta mover para secret". Nunca devolve valores.
+    InfraAudit,
+    /// Move um item entre env e secret, ou entre escopos. Sempre atômico: ou tudo muda, ou nada.
+    /// Falha se o destino já tem um item com o mesmo nome. Ver [`SecretMoveOp`].
+    SecretMove {
+        project_id: String,
+        /// Depende da operação (ver [`SecretMoveOp`]).
+        #[serde(default)]
+        service_id: Option<String>,
+        /// Nome do secret — ou a chave da env, em [`SecretMoveOp::EnvToSecret`].
+        name: String,
+        op: SecretMoveOp,
     },
 
     // Infra-as-Code (manifesto declarativo)
@@ -553,5 +600,69 @@ mod tests {
         let cmd: Command =
             serde_json::from_str(r#"{"JobWarm":{"job_id":"job_1","force":true}}"#).unwrap();
         assert!(matches!(cmd, Command::JobWarm { force: true, .. }));
+    }
+}
+
+#[cfg(test)]
+mod secret_tests {
+    use super::*;
+
+    #[test]
+    fn clientes_antigos_sem_service_id_continuam_validos() {
+        let c: Command =
+            serde_json::from_str(r#"{"SecretSet":{"project_id":"p","name":"K","value":"v"}}"#)
+                .unwrap();
+        assert!(matches!(
+            c,
+            Command::SecretSet {
+                service_id: None,
+                ..
+            }
+        ));
+        let c: Command = serde_json::from_str(r#"{"SecretList":{"project_id":"p"}}"#).unwrap();
+        assert!(matches!(
+            c,
+            Command::SecretList {
+                service_id: None,
+                ..
+            }
+        ));
+        let c: Command =
+            serde_json::from_str(r#"{"SecretDelete":{"project_id":"p","name":"K"}}"#).unwrap();
+        assert!(matches!(
+            c,
+            Command::SecretDelete {
+                service_id: None,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn comandos_novos_de_secret_ida_e_volta() {
+        let c: Command = serde_json::from_str(
+            r#"{"SecretMove":{"project_id":"p","service_id":"s","name":"K","op":"ServiceSecretToProject"}}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            c,
+            Command::SecretMove {
+                op: SecretMoveOp::ServiceSecretToProject,
+                ..
+            }
+        ));
+        let c: Command =
+            serde_json::from_str(r#"{"SecretReveal":{"project_id":"p","name":"K"}}"#).unwrap();
+        assert!(matches!(
+            c,
+            Command::SecretReveal {
+                service_id: None,
+                ..
+            }
+        ));
+        assert_eq!(
+            serde_json::to_string(&Command::InfraAudit).unwrap(),
+            "\"InfraAudit\""
+        );
     }
 }

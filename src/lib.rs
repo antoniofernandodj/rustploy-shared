@@ -11,4 +11,4 @@ pub mod models {
 
 pub use domain::*;
 pub use naming::*;
-pub use protocol::{Command, Event, Response};
+pub use protocol::{Command, Event, Response, SecretMoveOp};
