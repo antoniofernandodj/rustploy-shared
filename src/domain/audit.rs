@@ -15,4 +15,7 @@ pub struct PlaintextFinding {
     pub scope: String,
     /// `env DB_PASSWORD`, `senha do banco loja`…
     pub what: String,
+    /// Uma suspeita que o usuário marcou como "não é segredo" (não trava mais o git).
+    #[serde(default)]
+    pub allowed: bool,
 }

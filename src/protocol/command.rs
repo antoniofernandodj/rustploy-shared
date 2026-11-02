@@ -206,6 +206,30 @@ pub enum Command {
     /// Lista o que está em claro (ou parece estar) no estado de infra — a trava para ligar a
     /// sincronização com git, e o guia de "o que ainda falta mover para secret". Nunca devolve valores.
     InfraAudit,
+    /// Situação da sincronização do estado de infra com o git.
+    StateGitStatus,
+    /// Liga/desliga/configura a sincronização. `mode`: `off` | `commit` | `sync`. Ligar (`commit`/`sync`)
+    /// é **recusado** enquanto houver valor em claro no estado (ver `InfraAudit`). `remote` só em
+    /// `https://` (a credencial vem do `provider_id`) ou `file://` (testes/cópia local).
+    StateGitConfigure {
+        mode: String,
+        #[serde(default)]
+        remote: Option<String>,
+        #[serde(default)]
+        branch: Option<String>,
+        #[serde(default)]
+        provider_id: Option<String>,
+    },
+    /// "Sincronizar agora": faz o commit pendente e, em `sync`, o `push`.
+    StateGitSyncNow,
+    /// Marca (ou desmarca) uma **suspeita** da auditoria como "não é segredo", para não travar o git.
+    /// Certezas (senha de banco, webhook…) não podem ser liberadas.
+    InfraAuditAllow {
+        project: String,
+        scope: String,
+        what: String,
+        allowed: bool,
+    },
     /// Move um item entre env e secret, ou entre escopos. Sempre atômico: ou tudo muda, ou nada.
     /// Falha se o destino já tem um item com o mesmo nome. Ver [`SecretMoveOp`].
     SecretMove {
@@ -664,5 +688,41 @@ mod secret_tests {
             serde_json::to_string(&Command::InfraAudit).unwrap(),
             "\"InfraAudit\""
         );
+    }
+}
+
+#[cfg(test)]
+mod state_git_tests {
+    use super::*;
+
+    #[test]
+    fn configurar_so_com_o_modo_e_o_resto_opcional() {
+        let c: Command = serde_json::from_str(r#"{"StateGitConfigure":{"mode":"off"}}"#).unwrap();
+        assert!(matches!(
+            c,
+            Command::StateGitConfigure {
+                remote: None,
+                branch: None,
+                provider_id: None,
+                ..
+            }
+        ));
+        assert_eq!(
+            serde_json::to_string(&Command::StateGitSyncNow).unwrap(),
+            "\"StateGitSyncNow\""
+        );
+        let c: Command = serde_json::from_str(
+            r#"{"InfraAuditAllow":{"project":"p","scope":"projeto","what":"env X","allowed":true}}"#,
+        )
+        .unwrap();
+        assert!(matches!(c, Command::InfraAuditAllow { allowed: true, .. }));
+    }
+
+    #[test]
+    fn achado_antigo_sem_allowed_continua_legivel() {
+        let f: PlaintextFinding =
+            serde_json::from_str(r#"{"definite":false,"project":"p","scope":"s","what":"w"}"#)
+                .unwrap();
+        assert!(!f.allowed);
     }
 }
