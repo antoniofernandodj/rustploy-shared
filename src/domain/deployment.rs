@@ -100,6 +100,8 @@ mod pre_deploy_gate_tests {
             pre_deploy_job_id,
             pre_deploy_job_ids,
             shared: None,
+            depends_on: vec![],
+            autostart: true,
         }
     }
 

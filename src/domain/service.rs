@@ -65,6 +65,21 @@ pub struct ServiceSpec {
     /// `db_kind` de banco. Ver `docs/plano-banco-compartilhado.md` §2.3/§4.1.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shared: Option<SharedServerConfig>,
+    /// IDs de serviços **do mesmo projeto** que precisam estar prontos antes deste subir (no boot
+    /// do daemon e no "Subir projeto"). Sem ciclos — o daemon valida na criação/edição. Dependência
+    /// de banco compartilhado **não** se declara aqui: é derivada de `shared_access`.
+    /// Ver `docs/plano-backup-estado-em-git.md` (R8).
+    #[serde(default)]
+    pub depends_on: Vec<String>,
+    /// Participa do religamento automático (boot do daemon e "Subir projeto/tudo")? Padrão `true`.
+    /// É *declaração* (vai para o YAML); a intenção momentânea "foi parado à mão" é outra coisa e
+    /// mora no runtime do daemon (`desired_state`).
+    #[serde(default = "default_autostart")]
+    pub autostart: bool,
+}
+
+fn default_autostart() -> bool {
+    true
 }
 
 /// Configuração de um servidor de banco compartilhado. Hoje só marca o serviço
@@ -291,4 +306,62 @@ pub struct ServiceWarmStatus {
     /// Quando o serviço foi aquecido pela última vez (aquecimento explícito ou
     /// deploy bem-sucedido).
     pub warmed_at: Option<DateTime<Utc>>,
+}
+
+#[cfg(test)]
+mod dependencias_tests {
+    use super::*;
+
+    fn spec() -> ServiceSpec {
+        ServiceSpec {
+            name: "api".into(),
+            project_id: "p".into(),
+            source: ServiceSource::Registry { image: "x".into() },
+            port: 80,
+            host_port: None,
+            domain: None,
+            tls_enabled: false,
+            env_vars: vec![],
+            env_comments: vec![],
+            volumes: vec![],
+            healthcheck: Healthcheck::default(),
+            replicas: 1,
+            resources: ResourceLimits::default(),
+            run_command: None,
+            run_args: vec![],
+            db_kind: None,
+            domains: vec![],
+            pre_deploy_job_id: None,
+            pre_deploy_job_ids: vec![],
+            shared: None,
+            depends_on: vec!["svc_db".into()],
+            autostart: false,
+        }
+    }
+
+    /// Specs gravados antes de existirem `depends_on`/`autostart` (JSON no SQLite) precisam
+    /// continuar legíveis, com dependências vazias e autostart ligado.
+    #[test]
+    fn spec_antigo_sem_os_campos_novos_le_com_os_padroes() {
+        let mut v = serde_json::to_value(spec()).unwrap();
+        let obj = v.as_object_mut().unwrap();
+        assert!(obj.remove("depends_on").is_some());
+        assert!(obj.remove("autostart").is_some());
+        let velho: ServiceSpec = serde_json::from_value(v).unwrap();
+        assert!(velho.depends_on.is_empty());
+        assert!(velho.autostart);
+    }
+
+    #[test]
+    fn campos_novos_ida_e_volta() {
+        let back: ServiceSpec =
+            serde_json::from_str(&serde_json::to_string(&spec()).unwrap()).unwrap();
+        assert_eq!(back.depends_on, vec!["svc_db".to_string()]);
+        assert!(!back.autostart);
+    }
+
+    #[test]
+    fn autostart_padrao_e_verdadeiro() {
+        assert!(default_autostart());
+    }
 }

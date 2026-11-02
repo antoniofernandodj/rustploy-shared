@@ -63,6 +63,8 @@ mod ingress_tests {
             pre_deploy_job_id: None,
             pre_deploy_job_ids: vec![],
             shared: None,
+            depends_on: vec![],
+            autostart: true,
         }
     }
 
