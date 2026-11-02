@@ -3,6 +3,19 @@
 use crate::domain::*;
 use serde::{Deserialize, Serialize};
 
+/// Como resolver um histórico divergido (`Command::StateGitResolve`). Os dois lados andaram, então
+/// escolher um **descarta** o outro — por isso o outro vira uma branch de backup antes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StateGitResolveChoice {
+    /// "Usar o do remoto": o servidor adota o repositório. Os commits locais que o remoto não tem
+    /// ficam numa branch `rustploy-backup/local-<data>` no clone do servidor. Antes de adotar, o
+    /// conteúdo do remoto passa pelas mesmas validações de um pull (YAML, ciclos, valor em claro…).
+    UseRemote,
+    /// "Usar o meu": o repositório adota o servidor. O que o remoto tinha de diferente é copiado
+    /// para `rustploy-backup/remote-<data>` **no próprio remoto** antes de ser sobrescrito.
+    UseLocal,
+}
+
 /// As operações de [`Command::SecretMove`]. "Mover" = criar no destino e apagar na origem.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SecretMoveOp {
@@ -220,8 +233,20 @@ pub enum Command {
         #[serde(default)]
         provider_id: Option<String>,
     },
-    /// "Sincronizar agora": faz o commit pendente e, em `sync`, o `push`.
+    /// "Sincronizar agora": faz o commit pendente e, em `sync`, o `fetch`, a aplicação do que veio de
+    /// fora e o `push`.
     StateGitSyncNow,
+    /// Retoma a sincronização pausada por histórico divergido (depois de resolver no repositório).
+    StateGitResume,
+    /// Resolve a divergência **sem usar o terminal**: descarta um dos lados, com cópia de segurança
+    /// do que for descartado (ver [`StateGitResolveChoice`]). Só vale com a sincronização pausada.
+    StateGitResolve {
+        choice: StateGitResolveChoice,
+    },
+    /// Esquece uma marca de "removido no git" (`id` vem em `StateGitStatus.removed_in_git`).
+    StateGitDismissRemoval {
+        id: String,
+    },
     /// Marca (ou desmarca) uma **suspeita** da auditoria como "não é segredo", para não travar o git.
     /// Certezas (senha de banco, webhook…) não podem ser liberadas.
     InfraAuditAllow {
@@ -229,6 +254,12 @@ pub enum Command {
         scope: String,
         what: String,
         allowed: bool,
+    },
+    /// Para um container (`id` completo, vindo de `DockerContainers`). **Recusa** container que ainda
+    /// pertence a um serviço do estado: esses se param pelo serviço. Serve ao container órfão
+    /// ("removido no git"): parar aqui e depois `RemoveContainer`.
+    StopContainer {
+        id: String,
     },
     /// Move um item entre env e secret, ou entre escopos. Sempre atômico: ou tudo muda, ou nada.
     /// Falha se o destino já tem um item com o mesmo nome. Ver [`SecretMoveOp`].
@@ -724,5 +755,54 @@ mod state_git_tests {
             serde_json::from_str(r#"{"definite":false,"project":"p","scope":"s","what":"w"}"#)
                 .unwrap();
         assert!(!f.allowed);
+    }
+}
+
+#[cfg(test)]
+mod pull_tests {
+    use super::*;
+
+    #[test]
+    fn comandos_do_pull_e_status_antigo_sem_campos_novos() {
+        assert_eq!(
+            serde_json::to_string(&Command::StateGitResume).unwrap(),
+            "\"StateGitResume\""
+        );
+        let c: Command =
+            serde_json::from_str(r#"{"StateGitDismissRemoval":{"id":"serviço:s1"}}"#).unwrap();
+        assert!(matches!(c, Command::StateGitDismissRemoval { .. }));
+        // um status gravado/enviado por uma versão anterior (sem os campos da Fase 7) segue legível
+        let antigo = r#"{"mode":"sync","remote":null,"branch":"main","provider_id":null,
+            "git_available":true,"recovery_configured":false,"last_commit":null,
+            "last_push_ok":null,"last_push_at":null,"last_error":null,
+            "blocked_by_plaintext":0,"needs_push":false}"#;
+        let s: StateGitStatus = serde_json::from_str(antigo).unwrap();
+        assert!(
+            s.paused_reason.is_none() && s.removed_in_git.is_empty() && s.pending_deploy.is_empty()
+        );
+        assert_eq!((s.ahead, s.behind), (0, 0));
+    }
+}
+
+#[cfg(test)]
+mod resolve_tests {
+    use super::*;
+
+    #[test]
+    fn resolver_divergencia_e_parar_container() {
+        let c: Command =
+            serde_json::from_str(r#"{"StateGitResolve":{"choice":"UseRemote"}}"#).unwrap();
+        assert!(matches!(
+            c,
+            Command::StateGitResolve {
+                choice: StateGitResolveChoice::UseRemote
+            }
+        ));
+        let c: Command = serde_json::from_str(r#"{"StopContainer":{"id":"abc"}}"#).unwrap();
+        assert!(matches!(c, Command::StopContainer { .. }));
+        // inventário gravado por uma versão anterior (sem `removed_in_git`) segue legível
+        let antigo = r#"{"id":"a","name":"n","image":"i","state":"running","status":"Up","managed":true,"project":null,"service":null}"#;
+        let ci: DockerContainerInfo = serde_json::from_str(antigo).unwrap();
+        assert_eq!(ci.removed_in_git, None);
     }
 }

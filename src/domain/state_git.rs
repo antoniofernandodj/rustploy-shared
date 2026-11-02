@@ -12,6 +12,27 @@ pub struct StateGitCommit {
     pub subject: String,
 }
 
+/// Algo que sumiu do estado por um commit externo. O daemon **não** apaga container nem dados por
+/// causa disso: só marca, e a pessoa decide.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StateGitRemoved {
+    /// `serviço:<id>` ou `projeto:<id>` (use em `StateGitDismissRemoval`).
+    pub id: String,
+    pub kind: String,
+    pub name: String,
+    /// Nome do projeto (vazio para um projeto).
+    pub project: String,
+    pub sha: String,
+    pub at: String,
+}
+
+/// Um commit do remoto que o daemon **recusou** aplicar (e por quê).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StateGitRejected {
+    pub sha: String,
+    pub reason: String,
+}
+
 /// Situação da sincronização, para a tela de Settings.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StateGitStatus {
@@ -34,4 +55,24 @@ pub struct StateGitStatus {
     pub blocked_by_plaintext: usize,
     /// Há commits locais ainda não enviados.
     pub needs_push: bool,
+    /// Último `fetch` (RFC 3339).
+    #[serde(default)]
+    pub last_fetch_at: Option<String>,
+    /// Commits locais que o remoto não tem / commits do remoto que o local não tem.
+    #[serde(default)]
+    pub ahead: usize,
+    #[serde(default)]
+    pub behind: usize,
+    /// `Some` = a sincronização está **pausada** (o histórico divergiu); retome com `StateGitResume`.
+    #[serde(default)]
+    pub paused_reason: Option<String>,
+    /// O commit do remoto que foi recusado (YAML inválido, ciclo, valor em claro…).
+    #[serde(default)]
+    pub incoming_rejected: Option<StateGitRejected>,
+    /// O que sumiu por um commit externo e espera decisão.
+    #[serde(default)]
+    pub removed_in_git: Vec<StateGitRemoved>,
+    /// Serviços cujo declarado mudou por um commit externo: precisam de deploy para valer.
+    #[serde(default)]
+    pub pending_deploy: Vec<String>,
 }

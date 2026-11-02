@@ -61,6 +61,12 @@ pub struct DockerContainerInfo {
     pub managed: bool,
     pub project: Option<String>,
     pub service: Option<String>,
+    /// `Some(nome)` quando o serviço dono deste container **sumiu do estado por um commit externo**
+    /// (a sincronização com o git não para container nem apaga dado por conta própria). É o sinal de
+    /// "órfão": pare e remova daqui. Se o serviço voltar (rollback no git), a marca some e o
+    /// container volta a ser dele.
+    #[serde(default)]
+    pub removed_in_git: Option<String>,
 }
 
 /// One Docker network.

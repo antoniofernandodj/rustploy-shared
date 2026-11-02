@@ -5,7 +5,7 @@ mod event;
 mod logs;
 mod response;
 
-pub use command::{Command, SecretMoveOp};
+pub use command::{Command, SecretMoveOp, StateGitResolveChoice};
 pub use event::Event;
 pub use logs::{BuildLogLine, LogEntry, LogStream};
 pub use response::Response;

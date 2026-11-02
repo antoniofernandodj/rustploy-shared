@@ -46,7 +46,7 @@ pub enum Response {
     },
     SecretNames(Vec<String>),
     /// Situação da sincronização do estado com o git.
-    StateGit(StateGitStatus),
+    StateGit(Box<StateGitStatus>),
     /// Resposta de `Command::InfraAudit`: onde há valor em claro (sem o valor).
     InfraAudit(Vec<PlaintextFinding>),
     /// O valor de um secret, em resposta a `Command::SecretReveal`. Nunca vai em lista nem em snapshot.
