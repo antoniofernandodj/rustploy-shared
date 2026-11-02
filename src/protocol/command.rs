@@ -29,6 +29,13 @@ pub enum SecretMoveOp {
     ServiceSecretToProject,
     /// Secret de **projeto** → secret de um serviço específico. Exige `service_id` (o destino).
     ProjectSecretToService,
+    /// Variável **em claro** de um serviço → variável do projeto (passa a valer para todos os
+    /// serviços dele). Exige `service_id`; a env que aponta para um secret não se move aqui (mova o
+    /// secret). Falha se o projeto já tem uma variável com esse nome.
+    EnvServiceToProject,
+    /// Variável **em claro** do projeto → variável de um serviço (`service_id` é o destino); sai do
+    /// projeto, então os outros serviços deixam de recebê-la. Falha se o serviço já tem o nome.
+    EnvProjectToService,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
