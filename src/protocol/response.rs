@@ -112,6 +112,9 @@ pub enum Response {
     WizardCatalog {
         dbs: String,
         brokers: String,
+        /// RustFS e MinIO (passo "Storage"). `default`: um daemon antigo não manda o campo.
+        #[serde(default)]
+        storages: String,
         templates: String,
     },
 
