@@ -751,10 +751,9 @@ mod secret_tests {
 
     #[test]
     fn comandos_de_renomear_ida_e_volta() {
-        let c: Command = serde_json::from_str(
-            r#"{"EnvKeyRename":{"project_id":"p","from":"A","to":"B"}}"#,
-        )
-        .unwrap();
+        let c: Command =
+            serde_json::from_str(r#"{"EnvKeyRename":{"project_id":"p","from":"A","to":"B"}}"#)
+                .unwrap();
         assert!(matches!(
             &c,
             Command::EnvKeyRename { service_id: None, from, to, .. } if from == "A" && to == "B"
