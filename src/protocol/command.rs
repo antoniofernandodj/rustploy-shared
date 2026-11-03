@@ -279,6 +279,27 @@ pub enum Command {
         name: String,
         op: SecretMoveOp,
     },
+    /// Renomeia a **chave** de uma env (do projeto, ou do serviço se `service_id` vier), mantendo o
+    /// valor — `Plain` ou `Secret` — sem que ele passe pelo chamador, e acompanhando os comentários
+    /// do editor `.env` ancorados nela. Falha se `from` não existe ou `to` já existe no escopo.
+    /// Resposta: `Ok`.
+    EnvKeyRename {
+        project_id: String,
+        #[serde(default)]
+        service_id: Option<String>,
+        from: String,
+        to: String,
+    },
+    /// Renomeia um **secret** (do projeto, ou do serviço se `service_id` vier) e atualiza, na mesma
+    /// transação, toda env `Secret(from)` que resolvia para ele. O valor cifrado não é lido.
+    /// Falha se `from` não existe ou `to` já existe no escopo. Resposta: `Ok`.
+    SecretRename {
+        project_id: String,
+        #[serde(default)]
+        service_id: Option<String>,
+        from: String,
+        to: String,
+    },
 
     // Infra-as-Code (manifesto declarativo)
     /// Reconcilia projetos/serviços a partir de manifestos YAML já interpolados
@@ -726,6 +747,28 @@ mod secret_tests {
             serde_json::to_string(&Command::InfraAudit).unwrap(),
             "\"InfraAudit\""
         );
+    }
+
+    #[test]
+    fn comandos_de_renomear_ida_e_volta() {
+        let c: Command = serde_json::from_str(
+            r#"{"EnvKeyRename":{"project_id":"p","from":"A","to":"B"}}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            &c,
+            Command::EnvKeyRename { service_id: None, from, to, .. } if from == "A" && to == "B"
+        ));
+        let c: Command = serde_json::from_str(
+            r#"{"SecretRename":{"project_id":"p","service_id":"s","from":"A","to":"B"}}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            &c,
+            Command::SecretRename { service_id: Some(s), .. } if s == "s"
+        ));
+        let json = serde_json::to_value(&c).unwrap();
+        assert_eq!(json["SecretRename"]["to"], "B");
     }
 }
 
