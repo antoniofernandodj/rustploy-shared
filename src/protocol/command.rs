@@ -226,6 +226,11 @@ pub enum Command {
     /// Lista o que está em claro (ou parece estar) no estado de infra — a trava para ligar a
     /// sincronização com git, e o guia de "o que ainda falta mover para secret". Nunca devolve valores.
     InfraAudit,
+    /// Baixa a infra: os mesmos arquivos que o `state_git` grava no repositório (`settings.yml`,
+    /// `providers.yml`, `projects/<id>/project.yml`…), com os segredos como `ENC[age:…]`. Resposta:
+    /// `InfraFiles`. **Recusado** enquanto houver valor em claro que travaria o commit no git
+    /// (ver `InfraAudit`): o download não pode vazar o que o git não aceitaria.
+    InfraDownload,
     /// Situação da sincronização do estado de infra com o git.
     StateGitStatus,
     /// Liga/desliga/configura a sincronização. `mode`: `off` | `commit` | `sync`. Ligar (`commit`/`sync`)
@@ -299,45 +304,6 @@ pub enum Command {
         service_id: Option<String>,
         from: String,
         to: String,
-    },
-
-    // Infra-as-Code (manifesto declarativo)
-    /// Reconcilia projetos/serviços a partir de manifestos YAML já interpolados
-    /// pelo cliente (um documento `ProjectManifest` por string). Aditivo:
-    /// cria/atualiza, nunca deleta. Não dispara deploy.
-    ///
-    /// Os manifestos trafegam como YAML (e não como structs) para que o daemon
-    /// receba exatamente o texto do arquivo que o usuário edita; o parse fica
-    /// num lugar só, com `serde_yaml`. Ver `docs/infra-as-code.md`.
-    ManifestApply {
-        manifests: Vec<String>,
-        /// Deleta serviços que existem no projeto mas não constam no manifesto.
-        prune: bool,
-        /// Dispara deploy dos serviços criados/alterados após sincronizar.
-        deploy: bool,
-    },
-    /// Exporta o estado atual de um projeto como manifesto YAML (secrets redigidos).
-    ManifestExport {
-        project_id: String,
-    },
-    /// Exporta TODOS os projetos+serviços num único manifesto raiz
-    /// (`ServerManifest`). Todo valor de env var `Plain` é redigido para
-    /// `${KEY}` (nunca o valor real no YAML); `Secret` continua como
-    /// `secret:NOME`. Resposta: `ManifestBundle` (YAML + `.env` complementar
-    /// com os valores reais das vars `Plain`).
-    ManifestExportAll,
-    /// Importa um manifesto raiz (`projects:`) ou de projeto único
-    /// (`project:`) junto com o texto `.env` que resolve os `${VAR}` nele
-    /// usados. A interpolação roda no daemon (reaproveita
-    /// `ProjectManifest::interpolate`); se sobrar alguma `${VAR}` sem valor em
-    /// qualquer projeto, nada é aplicado e a resposta é `MissingEnvVars`. Sem
-    /// faltantes, reconcilia exatamente como `ManifestApply` (aditivo por
-    /// padrão; `prune`/`deploy` com a mesma semântica).
-    ManifestImport {
-        yaml: String,
-        dotenv: String,
-        prune: bool,
-        deploy: bool,
     },
 
     // Pacote de serviço (copiar um serviço entre servidores) — ver

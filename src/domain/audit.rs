@@ -19,3 +19,12 @@ pub struct PlaintextFinding {
     #[serde(default)]
     pub allowed: bool,
 }
+
+/// Um arquivo da infra tal como o `state_git` o grava no repositório (resposta de
+/// `Command::InfraDownload`). O conteúdo é sempre texto (YAML/JSON); os segredos vão como `ENC[age:…]`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InfraFile {
+    /// Caminho relativo à raiz do repositório (`settings.yml`, `projects/<id>/project.yml`…).
+    pub path: String,
+    pub content: String,
+}

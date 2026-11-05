@@ -49,16 +49,10 @@ pub enum Response {
     StateGit(Box<StateGitStatus>),
     /// Resposta de `Command::InfraAudit`: onde há valor em claro (sem o valor).
     InfraAudit(Vec<PlaintextFinding>),
+    /// Resposta de `Command::InfraDownload`: os arquivos da infra, na ordem estável.
+    InfraFiles(Vec<InfraFile>),
     /// O valor de um secret, em resposta a `Command::SecretReveal`. Nunca vai em lista nem em snapshot.
     SecretValue(String),
-    ManifestReport(ApplyReport),
-    /// Manifesto YAML serializado (resposta de `ManifestExport`).
-    Manifest(String),
-    /// YAML + `.env` complementar (resposta de `ManifestExportAll`).
-    ManifestBundle {
-        yaml: String,
-        dotenv: String,
-    },
     /// Resposta de `ServiceExportPlan`.
     ServiceExportPlan(ServiceExportPlan),
     /// Resposta de `ServiceExport`: o pacote e um nome de arquivo sugerido.
@@ -68,9 +62,6 @@ pub enum Response {
     },
     /// Resposta de `ServiceImport` (inclusive o `dry_run`).
     ServiceImportReport(Box<ServiceImportReport>),
-    /// `${VAR}` sem valor correspondente no `.env` (resposta de
-    /// `ManifestImport` quando faltam variáveis) — nada foi aplicado.
-    MissingEnvVars(Vec<String>),
 
     // Git providers
     GitProviders(Vec<GitProvider>),
