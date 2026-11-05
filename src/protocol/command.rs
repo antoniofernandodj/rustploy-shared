@@ -115,6 +115,19 @@ pub enum Command {
         service_id: String,
         tail: usize,
     },
+    /// Log de runtime **persistido** do serviço (sobrevive à troca de container no deploy e ao
+    /// rollback). Devolve até `limit` linhas em ordem cronológica, anteriores a `before` (ou as mais
+    /// recentes, se omitido); para paginar para trás, repita com o `next_before` da resposta.
+    /// `container_id` filtra por um container (id curto). Resposta: `LogsHistory`. Não cobre
+    /// serviços Compose (só ao vivo, por `LogsGet`).
+    LogsHistory {
+        service_id: String,
+        #[serde(default)]
+        before: Option<chrono::DateTime<chrono::Utc>>,
+        limit: usize,
+        #[serde(default)]
+        container_id: Option<String>,
+    },
     LogsSubscribe {
         service_id: String,
         tail: usize,

@@ -15,6 +15,12 @@ pub enum Response {
     Deployment(Box<Deployment>),
     Deployments(Vec<Deployment>),
     Logs(Vec<LogEntry>),
+    /// Resposta de `LogsHistory`. `next_before` = timestamp para pedir a página anterior; `None`
+    /// quando não há mais nada para trás.
+    LogsHistory {
+        entries: Vec<LogHistoryEntry>,
+        next_before: Option<chrono::DateTime<chrono::Utc>>,
+    },
     BuildLogs(Vec<BuildLogLine>),
     DeploymentSummaries(Vec<DeploymentSummary>),
     DaemonStatus(DaemonStatus),
