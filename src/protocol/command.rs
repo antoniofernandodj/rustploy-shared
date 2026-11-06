@@ -127,6 +127,22 @@ pub enum Command {
         limit: usize,
         #[serde(default)]
         container_id: Option<String>,
+        /// Vários containers de uma vez (uma execução com réplicas); soma-se a `container_id`.
+        /// Vazio (e sem `container_id`) = o serviço inteiro.
+        #[serde(default)]
+        container_ids: Vec<String>,
+    },
+    /// As execuções (um container = uma execução) com log guardado, da mais nova para a mais velha:
+    /// início/fim, deploy, imagem, linhas, bytes e desfecho do deploy. Resposta: `LogsExecutions`.
+    /// Não cobre serviços Compose.
+    LogsExecutions {
+        service_id: String,
+    },
+    /// Apaga o log guardado de execuções (irreversível; vários de uma vez). A execução atual é
+    /// recusada (`ExecutionRunning`); id inexistente é ignorado. Resposta: `LogsExecutionsDeleted`.
+    LogsExecutionDelete {
+        service_id: String,
+        container_ids: Vec<String>,
     },
     LogsSubscribe {
         service_id: String,

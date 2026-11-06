@@ -21,6 +21,13 @@ pub enum Response {
         entries: Vec<LogHistoryEntry>,
         next_before: Option<chrono::DateTime<chrono::Utc>>,
     },
+    /// Resposta de `LogsExecutions`: da mais nova para a mais velha.
+    LogsExecutions(Vec<LogExecution>),
+    /// Resposta de `LogsExecutionDelete`.
+    LogsExecutionsDeleted {
+        deleted: u32,
+        freed_bytes: u64,
+    },
     BuildLogs(Vec<BuildLogLine>),
     DeploymentSummaries(Vec<DeploymentSummary>),
     DaemonStatus(DaemonStatus),
