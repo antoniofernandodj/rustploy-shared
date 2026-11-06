@@ -95,7 +95,7 @@ mod pre_deploy_gate_tests {
             resources: ResourceLimits::default(),
             run_command: None,
             run_args: vec![],
-            db_kind: None,
+            product: None,
             domains: vec![],
             pre_deploy_job_id,
             pre_deploy_job_ids,

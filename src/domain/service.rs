@@ -30,12 +30,14 @@ pub struct ServiceSpec {
     pub run_command: Option<String>,
     #[serde(default)]
     pub run_args: Vec<String>,
-    /// Tipo de serviço gerenciado — banco (postgres | mongodb | mariadb |
-    /// mysql | redis) ou broker (kafka | rabbitmq | nats). Controla a aba
+    /// Produto de software gerenciado que roda no serviço — banco (postgres |
+    /// mongodb | mariadb | mysql | redis), broker (kafka | rabbitmq | nats) ou
+    /// storage (rustfs | minio); `None` = serviço comum. Controla a aba
     /// Connection no painel e a geração da internal connection URL (scheme por
-    /// tipo: postgres://, amqp://, nats://, Kafka sem scheme).
+    /// tipo: postgres://, amqp://, nats://, Kafka sem scheme). Antes se
+    /// chamava `db_kind` (renomeado na 0.18.0).
     #[serde(default)]
-    pub db_kind: Option<String>,
+    pub product: Option<String>,
     /// Rotas HTTP de domínio. Cada domínio pode apontar para uma porta de
     /// container diferente e ligar TLS de forma independente — permite um
     /// serviço que responde em várias portas expor vários subdomínios.
@@ -62,7 +64,7 @@ pub struct ServiceSpec {
     /// Se `Some`, este serviço de banco é um **servidor compartilhado**: o
     /// daemon o conecta às redes dos projetos autorizados (`shared_access`),
     /// sob o alias global [`shared_alias`](crate::shared_alias). Só vale com
-    /// `db_kind` de banco. Ver `docs/plano-banco-compartilhado.md` §2.3/§4.1.
+    /// `product` de banco. Ver `docs/plano-banco-compartilhado.md` §2.3/§4.1.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shared: Option<SharedServerConfig>,
     /// IDs de serviços **do mesmo projeto** que precisam estar prontos antes deste subir (no boot
@@ -329,7 +331,7 @@ mod dependencias_tests {
             resources: ResourceLimits::default(),
             run_command: None,
             run_args: vec![],
-            db_kind: None,
+            product: None,
             domains: vec![],
             pre_deploy_job_id: None,
             pre_deploy_job_ids: vec![],

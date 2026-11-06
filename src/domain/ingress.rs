@@ -58,7 +58,7 @@ mod ingress_tests {
             resources: ResourceLimits::default(),
             run_command: None,
             run_args: vec![],
-            db_kind: None,
+            product: None,
             domains,
             pre_deploy_job_id: None,
             pre_deploy_job_ids: vec![],
