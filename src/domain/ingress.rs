@@ -64,6 +64,7 @@ mod ingress_tests {
             pre_deploy_job_ids: vec![],
             shared: None,
             depends_on: vec![],
+            registry_auto_deploy: false,
             autostart: true,
         }
     }

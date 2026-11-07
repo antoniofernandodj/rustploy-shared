@@ -78,6 +78,11 @@ pub struct ServiceSpec {
     /// mora no runtime do daemon (`desired_state`).
     #[serde(default = "default_autostart")]
     pub autostart: bool,
+    /// Push-to-deploy: com `source = Registry` apontando para o registry **embutido**, cada
+    /// `docker push` da tag configurada redeploya o serviço sozinho (sem webhook nem Git no
+    /// servidor). Opt-in; padrão `false`. Ver `docs/plano-registry-embutido.md` (Fase 4).
+    #[serde(default)]
+    pub registry_auto_deploy: bool,
 }
 
 fn default_autostart() -> bool {
@@ -337,6 +342,7 @@ mod dependencias_tests {
             pre_deploy_job_ids: vec![],
             shared: None,
             depends_on: vec!["svc_db".into()],
+            registry_auto_deploy: false,
             autostart: false,
         }
     }

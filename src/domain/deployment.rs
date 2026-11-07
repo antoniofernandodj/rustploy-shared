@@ -101,6 +101,7 @@ mod pre_deploy_gate_tests {
             pre_deploy_job_ids,
             shared: None,
             depends_on: vec![],
+            registry_auto_deploy: false,
             autostart: true,
         }
     }

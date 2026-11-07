@@ -324,6 +324,20 @@ pub enum Command {
         from: String,
         to: String,
     },
+    /// Troca só o **valor** de uma env existente (do projeto, ou do serviço se `service_id` vier),
+    /// na mesma posição da lista — edição "no lugar", sem reenviar a lista inteira como o
+    /// `ProjectEnvSet`/`ServiceUpdate` (que são substituição total e perdem o que o cliente não
+    /// conhece). `value` é `{"Plain":"…"}` ou `{"Secret":"NOME"}`; um `Secret` precisa existir no
+    /// escopo (do serviço ou, caindo para ele, do projeto). Falha se a chave não existe, se o
+    /// valor é a máscara `***` (cópia de uma tela que escondeu o segredo) ou se o secret não existe.
+    /// Resposta: `Ok`.
+    EnvValueSet {
+        project_id: String,
+        #[serde(default)]
+        service_id: Option<String>,
+        key: String,
+        value: EnvVarValue,
+    },
     /// Renomeia um **secret** (do projeto, ou do serviço se `service_id` vier) e atualiza, na mesma
     /// transação, toda env `Secret(from)` que resolvia para ele. O valor cifrado não é lido.
     /// Falha se `from` não existe ou `to` já existe no escopo. Resposta: `Ok`.
@@ -742,6 +756,25 @@ mod secret_tests {
             serde_json::to_string(&Command::InfraAudit).unwrap(),
             "\"InfraAudit\""
         );
+    }
+
+    #[test]
+    fn env_value_set_ida_e_volta() {
+        let c: Command = serde_json::from_str(
+            r#"{"EnvValueSet":{"project_id":"p","key":"A","value":{"Plain":"x"}}}"#,
+        )
+        .unwrap();
+        assert!(matches!(
+            &c,
+            Command::EnvValueSet { service_id: None, key, value: EnvVarValue::Plain(v), .. }
+                if key == "A" && v == "x"
+        ));
+        let c: Command = serde_json::from_str(
+            r#"{"EnvValueSet":{"project_id":"p","service_id":"s","key":"A","value":{"Secret":"S"}}}"#,
+        )
+        .unwrap();
+        let json = serde_json::to_value(&c).unwrap();
+        assert_eq!(json["EnvValueSet"]["value"]["Secret"], "S");
     }
 
     #[test]

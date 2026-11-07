@@ -93,6 +93,14 @@ pub enum Event {
         success: Option<bool>,
         error: Option<String>,
     },
+    /// Um `PUT /v2/<repo>/manifests/<tag>` do registry embutido foi aceito: a imagem
+    /// `<repo>:<tag>` mudou. Vale para todos os clientes (a aba Registry atualiza ao vivo) e é o
+    /// gatilho do push-to-deploy dos serviços com `registry_auto_deploy`.
+    RegistryPush {
+        repo: String,
+        tag: String,
+        digest: String,
+    },
 }
 
 impl Event {
@@ -122,7 +130,8 @@ impl Event {
             | Event::DeployQueueChanged
             | Event::DockerCleanupCompleted { .. }
             | Event::JobWarmChanged { .. }
-            | Event::ServiceWarmChanged { .. } => true,
+            | Event::ServiceWarmChanged { .. }
+            | Event::RegistryPush { .. } => true,
         }
     }
 }
