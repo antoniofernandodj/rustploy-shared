@@ -12,6 +12,33 @@ pub struct Deployment {
     pub finished_at: Option<DateTime<Utc>>,
 }
 
+/// O que aconteceu com um serviço num deploy em lote (`DeployWithDependencies`, `ProjectDeploy`).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum DeployBatchStatus {
+    /// Entrou na fila; `deployment_id` vem preenchido.
+    Queued,
+    /// Não entrou: já estava rodando (`skip_running`) ou já estava na fila/em deploy.
+    Skipped,
+    /// Não entrou porque uma dependência dele não pôde ser enfileirada.
+    Blocked,
+    /// O deploy não pôde ser criado (fonte sem configuração, erro de banco…); `message` diz a causa.
+    Failed,
+}
+
+/// Um serviço do plano de um deploy em lote, na ordem em que entra na fila: as dependências
+/// vêm antes de quem depende delas. `wave` é a "onda" da árvore (0 = não depende de ninguém).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DeployBatchItem {
+    pub service_id: String,
+    pub service_name: String,
+    pub wave: u32,
+    pub status: DeployBatchStatus,
+    #[serde(default)]
+    pub deployment_id: Option<String>,
+    #[serde(default)]
+    pub message: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum DeployState {
     Pending,

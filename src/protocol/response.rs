@@ -14,6 +14,8 @@ pub enum Response {
     Services(Vec<Service>),
     Deployment(Box<Deployment>),
     Deployments(Vec<Deployment>),
+    /// Resposta de `DeployWithDependencies` e `ProjectDeploy`: o plano, na ordem em que entrou na fila.
+    DeployBatch(Vec<DeployBatchItem>),
     Logs(Vec<LogEntry>),
     /// Resposta de `LogsHistory`. `next_before` = timestamp para pedir a página anterior; `None`
     /// quando não há mais nada para trás.

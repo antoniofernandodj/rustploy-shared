@@ -80,6 +80,38 @@ pub enum Command {
     DeployStart {
         service_id: String,
     },
+    /// Faz o deploy de um serviço **e da árvore de dependências dele**: enfileira, na ordem certa (quem
+    /// não depende de ninguém primeiro), todas as dependências (diretas e indiretas, inclusive o banco
+    /// compartilhado a que o projeto tem acesso) e por último o serviço. Se o deploy de uma dependência
+    /// falhar, quem depende dela **não roda** (fica "Failed: a dependência … não foi implantada"). Com
+    /// `skip_running`, as dependências que já estão no ar não entram na fila. Resposta: `DeployBatch`.
+    DeployWithDependencies {
+        service_id: String,
+        #[serde(default)]
+        skip_running: bool,
+    },
+    /// Faz o deploy de **todos os serviços do projeto**, cada um com as suas dependências, na ordem
+    /// necessária para todos funcionarem (o mesmo plano do `DeployWithDependencies`, para o projeto
+    /// inteiro). Resposta: `DeployBatch`.
+    ProjectDeploy {
+        project_id: String,
+        #[serde(default)]
+        skip_running: bool,
+    },
+    /// **Só mostra** o plano de `DeployWithDependencies`, sem enfileirar nada: a ordem em que os serviços
+    /// entrariam na fila (`Queued` = entraria; `Skipped` = ficaria de fora, com o motivo em `message`).
+    /// É o que a tela mostra antes de a pessoa confirmar. Resposta: `DeployBatch` (sem `deployment_id`).
+    DeployWithDependenciesPlan {
+        service_id: String,
+        #[serde(default)]
+        skip_running: bool,
+    },
+    /// Como `DeployWithDependenciesPlan`, para o `ProjectDeploy` (o projeto inteiro).
+    ProjectDeployPlan {
+        project_id: String,
+        #[serde(default)]
+        skip_running: bool,
+    },
     DeployAbort {
         deployment_id: String,
     },
@@ -881,5 +913,32 @@ mod resolve_tests {
         let antigo = r#"{"id":"a","name":"n","image":"i","state":"running","status":"Up","managed":true,"project":null,"service":null}"#;
         let ci: DockerContainerInfo = serde_json::from_str(antigo).unwrap();
         assert_eq!(ci.removed_in_git, None);
+    }
+}
+
+#[cfg(test)]
+mod deploy_batch_tests {
+    use super::*;
+
+    #[test]
+    fn deploy_em_lote_ida_e_volta_e_skip_running_e_opcional() {
+        let c: Command =
+            serde_json::from_str(r#"{"DeployWithDependencies":{"service_id":"s"}}"#).unwrap();
+        assert!(matches!(
+            &c,
+            Command::DeployWithDependencies { service_id, skip_running: false } if service_id == "s"
+        ));
+        let c: Command =
+            serde_json::from_str(r#"{"ProjectDeploy":{"project_id":"p","skip_running":true}}"#)
+                .unwrap();
+        assert!(matches!(
+            &c,
+            Command::ProjectDeploy {
+                skip_running: true,
+                ..
+            }
+        ));
+        let json = serde_json::to_value(&c).unwrap();
+        assert_eq!(json["ProjectDeploy"]["project_id"], "p");
     }
 }
