@@ -54,6 +54,15 @@ pub enum Command {
         description: Option<String>,
     },
     ProjectList,
+    /// Define a ordem de exibição dos serviços do projeto: `service_ids` na ordem
+    /// desejada. Guardada no próprio `project.yml` (a posição de cada serviço na
+    /// lista `services`), logo vai para o git. Ids que sobrarem (serviço criado
+    /// enquanto a tela estava aberta) ficam no fim, na ordem em que já estavam; id
+    /// que não é do projeto ou repetido é erro. Response: `Ok`.
+    ProjectServicesReorder {
+        project_id: String,
+        service_ids: Vec<String>,
+    },
     ProjectEnvSet {
         project_id: String,
         env_vars: Vec<EnvVar>,
