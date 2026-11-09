@@ -75,6 +75,8 @@ pub enum Response {
         yaml: String,
         filename: String,
     },
+    /// Resposta de `ServiceDataPlan`.
+    ServiceDataPlan(ServiceDataPlan),
     /// Resposta de `ServiceImport` (inclusive o `dry_run`).
     ServiceImportReport(Box<ServiceImportReport>),
 

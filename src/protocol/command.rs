@@ -408,6 +408,12 @@ pub enum Command {
         #[serde(default)]
         project_env_keys: Vec<String>,
     },
+    /// Dados do serviço (volumes): o que um export levaria. Só olha, não muda nada. Os bytes
+    /// vão por `GET /api/services/<id>/data/export` e `POST /api/services/<id>/data/import`.
+    /// Resposta: `ServiceDataPlan`.
+    ServiceDataPlan {
+        service_id: String,
+    },
     /// Cria UM serviço novo a partir de um pacote, sem sobrescrever nada.
     /// `dry_run` só devolve o relatório. Resposta: `ServiceImportReport`.
     ServiceImport(ServiceImportReq),
