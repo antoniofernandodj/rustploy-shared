@@ -675,6 +675,11 @@ pub enum Command {
     /// do CAS) e uploads abandonados há mais de 24 h. Resposta:
     /// `RegistryGcResult`.
     RegistryGc,
+    /// Grava a política de retenção de tags (ligar/desligar e quantas manter).
+    /// A leitura vem em `RegistryStatus(.retention)`. Resposta: `Ok`.
+    RegistryRetentionSet {
+        config: crate::RegistryRetentionConfig,
+    },
     /// Cria um token de acesso (Basic auth) — `scope` é `"pull"` ou `"push"`.
     /// Resposta traz o segredo em texto plano UMA ÚNICA VEZ.
     RegistryTokenCreate {
