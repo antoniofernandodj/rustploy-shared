@@ -219,6 +219,19 @@ pub struct DaemonStatus {
     pub services_total: usize,
 }
 
+/// O que um item da fila global é: um deploy, a execução de um job avulso (Agendamentos) ou o
+/// aquecimento de um job. Os três disputam a mesma vaga única e aparecem nas mesmas listas do
+/// Deploy Engine (`queued`, `active`, `recent`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum QueueItemKind {
+    #[default]
+    Deploy,
+    /// Uma execução de job (`job_run`). `deployment_id` carrega o id da execução (`jrun_…`).
+    Job,
+    /// O aquecimento de um job (`jwarm_…`). Só existe enquanto espera/roda: não vai ao histórico.
+    Warm,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveDeployInfo {
     pub deployment_id: String,
@@ -233,6 +246,11 @@ pub struct ActiveDeployInfo {
     /// stepper detalhado dos clientes; daemons antigos não o enviam.
     #[serde(default)]
     pub states: Vec<StateTransition>,
+    /// Deploy, job ou aquecimento. Daemon antigo não manda: `Deploy`. Para `Job` e `Warm`,
+    /// `deployment_id` é o id do item na fila (serve a promover, reordenar e cancelar),
+    /// `service_name` é o nome do job e `service_id` o do serviço gatilho (vazio se autônomo).
+    #[serde(default)]
+    pub kind: QueueItemKind,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -249,4 +267,27 @@ pub struct DeployEngineSummary {
     pub queued: Vec<ActiveDeployInfo>,
     /// Fila pausada — o worker não puxa o próximo até retomar.
     pub paused: bool,
+}
+
+#[cfg(test)]
+mod queue_item_kind_tests {
+    use super::*;
+
+    #[test]
+    fn daemon_antigo_sem_kind_e_deploy() {
+        let json = r#"{"deployment_id":"dep_1","service_id":"s","service_name":"api","project_name":"p",
+            "state":"Pending","started_at":"2026-11-10T00:00:00Z","elapsed_secs":0,"current_state_secs":0}"#;
+        let info: ActiveDeployInfo = serde_json::from_str(json).unwrap();
+        assert_eq!(info.kind, QueueItemKind::Deploy);
+    }
+
+    #[test]
+    fn kind_de_job_vai_e_volta() {
+        let json = serde_json::to_string(&QueueItemKind::Job).unwrap();
+        assert_eq!(json, "\"Job\"");
+        assert_eq!(
+            serde_json::from_str::<QueueItemKind>("\"Warm\"").unwrap(),
+            QueueItemKind::Warm
+        );
+    }
 }
