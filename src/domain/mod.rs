@@ -1,6 +1,7 @@
 //! Modelos de domínio: projeto, serviço e suas fontes, deployment, jobs, bancos, registry e inventário Docker.
 
 mod audit;
+mod data_backup;
 mod database;
 mod deployment;
 mod docker_inventory;
@@ -20,6 +21,7 @@ mod update;
 mod wizard;
 
 pub use audit::*;
+pub use data_backup::*;
 pub use database::*;
 pub use deployment::*;
 pub use docker_inventory::*;

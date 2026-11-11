@@ -414,6 +414,80 @@ pub enum Command {
     ServiceDataPlan {
         service_id: String,
     },
+    /// O destino S3 dos backups de dados (sem a chave secreta). Resposta: `BackupDestination`.
+    BackupDestinationGet,
+    /// Grava o destino S3. `secret_key: None` mantém a chave já gravada. Confere os campos, mas não
+    /// conecta (use `BackupDestinationTest`). Resposta: `BackupDestination`.
+    BackupDestinationSet {
+        destination: BackupDestination,
+    },
+    /// Apaga o destino gravado (os backups já enviados ficam no S3). Resposta: `Ok`.
+    BackupDestinationClear,
+    /// Testa a conexão: grava, lê e apaga um objeto pequeno. `destination: None` testa o gravado; com
+    /// valor, testa o rascunho da tela (e `secret_key: None` usa a chave gravada). Resposta: `Ok`.
+    BackupDestinationTest {
+        #[serde(default)]
+        destination: Option<BackupDestination>,
+    },
+    /// Os backups de dados de um serviço no S3 e a última operação. Resposta: `ServiceBackups`.
+    ServiceBackupList {
+        service_id: String,
+    },
+    /// Faz o backup dos dados do serviço para o S3 **em segundo plano** (volumes e bancos, cifrado com a
+    /// chave de recuperação). Responde `Ok` assim que começa; o andamento e o resultado vêm em
+    /// `ServiceBackupList(.last_run)`. `stop`: parar o serviço durante a cópia de volume (padrão
+    /// `true`; banco não para). `keep`: depois de enviar, manter só os `keep` mais novos.
+    ServiceBackupNow {
+        service_id: String,
+        #[serde(default = "backup_stop_default")]
+        stop: bool,
+        #[serde(default)]
+        keep: Option<u32>,
+    },
+    /// Restaura um backup do S3 **substituindo** os dados atuais do serviço, em segundo plano (o mesmo
+    /// caminho e a mesma rede de segurança da importação). Exige `confirm: true`. Resposta: `Ok`.
+    ServiceBackupRestore {
+        service_id: String,
+        key: String,
+        confirm: bool,
+    },
+    /// Apaga um backup do S3. Resposta: `Ok`.
+    ServiceBackupDelete {
+        service_id: String,
+        key: String,
+    },
+    /// Grava (ou, com `None`, apaga) a política de backup automático do serviço. Ligar exige o destino S3
+    /// configurado e a chave de recuperação. Resposta: `ServiceBackups` (já com a política e o próximo
+    /// disparo).
+    ServiceBackupPolicySet {
+        service_id: String,
+        policy: Option<BackupPolicy>,
+    },
+    /// **Recuperar este servidor** (passo 1): num servidor **limpo**, traz a infra do repositório git e
+    /// recifra os segredos para este servidor, **sem** mexer nos dados nem subir nada. A chave privada de
+    /// recuperação fica só na memória (até `ServerRecoverRun`, `ServerRecoverCancel` ou 1 hora). Resposta:
+    /// `ServerRecover` (`phase: "ready"`, com o que foi achado e os backups por serviço).
+    ServerRecoverStart {
+        /// Endereço do repositório da infra: `https://…`, `file://…` ou um caminho absoluto.
+        remote: String,
+        /// Token de acesso ao repositório (vira um provider git deste servidor). Dispensável num remoto
+        /// local (`file://…` ou caminho absoluto).
+        #[serde(default)]
+        token: String,
+        #[serde(default)]
+        branch: Option<String>,
+        /// A chave privada de recuperação (`AGE-SECRET-KEY-1…`).
+        recovery_key: String,
+    },
+    /// Em que ponto a recuperação está. Resposta: `ServerRecover`.
+    ServerRecoverStatus,
+    /// Recuperação (passo 2): restaura os dados e sobe cada serviço na ordem das dependências (volumes
+    /// antes de subir, bancos depois). Em segundo plano; acompanhe por `ServerRecoverStatus`.
+    /// Resposta: `Ok`.
+    ServerRecoverRun,
+    /// Desiste: esquece a chave de recuperação da memória. A infra restaurada continua no servidor.
+    /// Resposta: `ServerRecover`.
+    ServerRecoverCancel,
     /// Cria UM serviço novo a partir de um pacote, sem sobrescrever nada.
     /// `dry_run` só devolve o relatório. Resposta: `ServiceImportReport`.
     ServiceImport(ServiceImportReq),
@@ -709,6 +783,10 @@ pub enum Command {
     DeployQueuePause {
         paused: bool,
     },
+}
+
+fn backup_stop_default() -> bool {
+    true
 }
 
 #[cfg(test)]

@@ -77,6 +77,12 @@ pub enum Response {
     },
     /// Resposta de `ServiceDataPlan`.
     ServiceDataPlan(ServiceDataPlan),
+    /// Resposta de `BackupDestinationGet` e `BackupDestinationSet`.
+    BackupDestination(BackupDestinationView),
+    /// Resposta de `ServiceBackupList`.
+    ServiceBackups(ServiceBackups),
+    /// Resposta dos comandos `ServerRecover*`.
+    ServerRecover(Box<ServerRecoverInfo>),
     /// Resposta de `ServiceImport` (inclusive o `dry_run`).
     ServiceImportReport(Box<ServiceImportReport>),
 
