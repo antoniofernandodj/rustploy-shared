@@ -736,8 +736,13 @@ pub enum Command {
         /// Personal Access Token, when `auth_mode == Pat`.
         pat: Option<String>,
     },
+    /// Remove uma conta git. **Recusa** (`InUse`, com a lista) enquanto algum serviço ou job ainda
+    /// aponta para ela — sem a conta eles não conseguem mais clonar —, a menos que `force` seja `true`.
+    /// Os clientes avisam o usuário antes e só então mandam `force`. Resposta: `Ok`.
     GitProviderDelete {
         id: String,
+        #[serde(default)]
+        force: bool,
     },
     /// Returns the Gitea authorization URL for the client to open in a browser.
     GitOAuthStart {
