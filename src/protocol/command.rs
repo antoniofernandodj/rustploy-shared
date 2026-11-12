@@ -36,6 +36,10 @@ pub enum SecretMoveOp {
     /// Variável **em claro** do projeto → variável de um serviço (`service_id` é o destino); sai do
     /// projeto, então os outros serviços deixam de recebê-la. Falha se o serviço já tem o nome.
     EnvProjectToService,
+    /// Variável **em claro** de um job → variável do projeto. Exige `job_id`.
+    EnvJobToProject,
+    /// Secret de **job** → secret de projeto. Exige `job_id`.
+    JobSecretToProject,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -271,6 +275,10 @@ pub enum Command {
         project_id: String,
         #[serde(default)]
         service_id: Option<String>,
+        /// Escopo de **job** (`Some` = secret/env daquele job; exige `service_id: None`). Na resolução de
+        /// um secret do job vale o do job, depois o do serviço gatilho, depois o do projeto.
+        #[serde(default)]
+        job_id: Option<String>,
         name: String,
         value: String,
     },
@@ -278,12 +286,20 @@ pub enum Command {
         project_id: String,
         #[serde(default)]
         service_id: Option<String>,
+        /// Escopo de **job** (`Some` = secret/env daquele job; exige `service_id: None`). Na resolução de
+        /// um secret do job vale o do job, depois o do serviço gatilho, depois o do projeto.
+        #[serde(default)]
+        job_id: Option<String>,
         name: String,
     },
     SecretList {
         project_id: String,
         #[serde(default)]
         service_id: Option<String>,
+        /// Escopo de **job** (`Some` = secret/env daquele job; exige `service_id: None`). Na resolução de
+        /// um secret do job vale o do job, depois o do serviço gatilho, depois o do projeto.
+        #[serde(default)]
+        job_id: Option<String>,
     },
     /// Devolve o **valor** de um secret (botão "ver valor"). Fica fora do MCP/`rpc` do agente e
     /// grava uma linha de auditoria (quem, qual secret, quando — nunca o valor).
@@ -291,6 +307,10 @@ pub enum Command {
         project_id: String,
         #[serde(default)]
         service_id: Option<String>,
+        /// Escopo de **job** (`Some` = secret/env daquele job; exige `service_id: None`). Na resolução de
+        /// um secret do job vale o do job, depois o do serviço gatilho, depois o do projeto.
+        #[serde(default)]
+        job_id: Option<String>,
         name: String,
     },
     /// Lista o que está em claro (ou parece estar) no estado de infra — a trava para ligar a
@@ -350,6 +370,10 @@ pub enum Command {
         /// Depende da operação (ver [`SecretMoveOp`]).
         #[serde(default)]
         service_id: Option<String>,
+        /// Escopo de **job** (`Some` = secret/env daquele job; exige `service_id: None`). Na resolução de
+        /// um secret do job vale o do job, depois o do serviço gatilho, depois o do projeto.
+        #[serde(default)]
+        job_id: Option<String>,
         /// Nome do secret — ou a chave da env, em [`SecretMoveOp::EnvToSecret`].
         name: String,
         op: SecretMoveOp,
@@ -362,6 +386,10 @@ pub enum Command {
         project_id: String,
         #[serde(default)]
         service_id: Option<String>,
+        /// Escopo de **job** (`Some` = secret/env daquele job; exige `service_id: None`). Na resolução de
+        /// um secret do job vale o do job, depois o do serviço gatilho, depois o do projeto.
+        #[serde(default)]
+        job_id: Option<String>,
         from: String,
         to: String,
     },
@@ -376,6 +404,10 @@ pub enum Command {
         project_id: String,
         #[serde(default)]
         service_id: Option<String>,
+        /// Escopo de **job** (`Some` = secret/env daquele job; exige `service_id: None`). Na resolução de
+        /// um secret do job vale o do job, depois o do serviço gatilho, depois o do projeto.
+        #[serde(default)]
+        job_id: Option<String>,
         key: String,
         value: EnvVarValue,
     },
@@ -386,6 +418,10 @@ pub enum Command {
         project_id: String,
         #[serde(default)]
         service_id: Option<String>,
+        /// Escopo de **job** (`Some` = secret/env daquele job; exige `service_id: None`). Na resolução de
+        /// um secret do job vale o do job, depois o do serviço gatilho, depois o do projeto.
+        #[serde(default)]
+        job_id: Option<String>,
         from: String,
         to: String,
     },
