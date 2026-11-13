@@ -524,6 +524,18 @@ pub enum Command {
     /// Desiste: esquece a chave de recuperação da memória. A infra restaurada continua no servidor.
     /// Resposta: `ServerRecover`.
     ServerRecoverCancel,
+    /// A chave **pública** de recuperação deste servidor (`[secrets] recovery_recipient`), se houver.
+    /// Nunca devolve a privada. Resposta: `RecoveryKey`.
+    /// Plano: `docs/plano-chave-de-recuperacao.md`.
+    RecoveryKeyStatus,
+    /// **Gera** a chave de recuperação: grava só a pública no `config.toml` e devolve a privada **uma única
+    /// vez** (o servidor não a guarda; quem chama deve baixá-la na hora). Já havendo chave, recusa — a não
+    /// ser com `replace: true` (a antiga deixa de cifrar o que for exportado daí em diante). Resposta:
+    /// `RecoveryKeyGenerated`.
+    RecoveryKeyGenerate {
+        #[serde(default)]
+        replace: bool,
+    },
     /// Cria UM serviço novo a partir de um pacote, sem sobrescrever nada.
     /// `dry_run` só devolve o relatório. Resposta: `ServiceImportReport`.
     ServiceImport(ServiceImportReq),
@@ -1079,5 +1091,25 @@ mod deploy_batch_tests {
         ));
         let json = serde_json::to_value(&c).unwrap();
         assert_eq!(json["ProjectDeploy"]["project_id"], "p");
+    }
+}
+
+#[cfg(test)]
+mod recovery_key_tests {
+    use super::*;
+
+    #[test]
+    fn gerar_sem_replace_assume_falso() {
+        let c: Command = serde_json::from_str(r#"{"RecoveryKeyGenerate":{}}"#).unwrap();
+        assert!(matches!(c, Command::RecoveryKeyGenerate { replace: false }));
+        let c: Command =
+            serde_json::from_str(r#"{"RecoveryKeyGenerate":{"replace":true}}"#).unwrap();
+        assert!(matches!(c, Command::RecoveryKeyGenerate { replace: true }));
+    }
+
+    #[test]
+    fn status_e_um_comando_sem_campos() {
+        let c: Command = serde_json::from_str(r#""RecoveryKeyStatus""#).unwrap();
+        assert!(matches!(c, Command::RecoveryKeyStatus));
     }
 }

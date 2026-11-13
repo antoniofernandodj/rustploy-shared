@@ -175,6 +175,20 @@ pub enum Response {
         secret: String,
     },
     RegistryTokens(Vec<RegistryTokenInfo>),
+    /// Resposta de `RecoveryKeyStatus`: há chave de recuperação e qual é a pública (`age1…`).
+    RecoveryKey {
+        configured: bool,
+        public_key: Option<String>,
+    },
+    /// Resposta de `RecoveryKeyGenerate` — `private_key` (`AGE-SECRET-KEY-1…`) só aparece aqui, uma vez.
+    /// `file_contents` é o texto pronto para salvar (o mesmo formato do `rustploy-cli keygen`) e
+    /// `suggested_filename` o nome sugerido, para os clientes baixarem sem remontar nada.
+    RecoveryKeyGenerated {
+        public_key: String,
+        private_key: String,
+        file_contents: String,
+        suggested_filename: String,
+    },
 
     Err {
         code: String,
