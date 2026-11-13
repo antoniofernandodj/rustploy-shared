@@ -10,8 +10,16 @@ pub struct ServiceSpec {
     pub project_id: String,
     pub source: ServiceSource,
     pub port: u16,
+    /// Legado (até 2026-11): **uma** porta TCP do host, sempre ligada à `port` do serviço. Substituído por
+    /// `tcp_ports`; o daemon ainda o **espelha** (a rota que vai para a `port`) para clientes e daemons
+    /// antigos não perderem a porta. Código novo lê [`ServiceSpec::tcp_routes`], nunca este campo.
     #[serde(default)]
     pub host_port: Option<u16>,
+    /// Portas TCP do host ligadas a portas do container (passthrough no ingress, sem HTTP): cada uma pode ir
+    /// para uma porta diferente do container (ex.: RustFS 9000 = API S3 e 9001 = console). Retrocompat: vazio
+    /// cai no `host_port` legado. Ver [`ServiceSpec::tcp_routes`] e `docs/plano-multiplas-portas-tcp.md`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tcp_ports: Vec<TcpPortRoute>,
     pub domain: Option<String>,
     #[serde(default)]
     pub tls_enabled: bool,
@@ -114,6 +122,46 @@ impl DomainRoute {
     }
 }
 
+/// Uma porta do container que o serviço provavelmente tem, sugerida ao configurar as portas TCP.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PortSuggestion {
+    /// Porta do container.
+    pub port: u16,
+    /// Nome conhecido ("API S3", "console", "painel"), se o produto do serviço o tiver na tabela.
+    #[serde(default)]
+    pub label: Option<String>,
+    /// De onde veio, em ids estáveis para os clientes traduzirem: `"listening"` (o container escuta agora),
+    /// `"image"` (a imagem/container declara), `"compose"` (o compose declara), `"product"` (tabela do
+    /// produto). Uma porta pode vir de várias.
+    pub sources: Vec<String>,
+    /// Porta interna (ex.: cluster do RabbitMQ): existe, mas não deve ser exposta.
+    #[serde(default)]
+    pub internal: bool,
+}
+
+/// Máximo de portas TCP por serviço: uma lista longa por engano abriria meia faixa de portas no firewall.
+pub const MAX_TCP_PORTS: usize = 8;
+
+/// Uma porta TCP do host ligada a uma porta do container.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TcpPortRoute {
+    /// Porta do host. `0` = "Automática": o daemon escolhe uma livre da faixa ao salvar.
+    pub host_port: u16,
+    /// Porta do container. `None` = a `port` padrão do serviço.
+    #[serde(default)]
+    pub container_port: Option<u16>,
+    /// Nome para a tela ("console", "painel"). Não muda nada no roteamento.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+}
+
+impl TcpPortRoute {
+    /// Porta de container efetiva (a própria, ou a `port` padrão do serviço).
+    pub fn container_port(&self, default: u16) -> u16 {
+        self.container_port.unwrap_or(default)
+    }
+}
+
 impl Service {
     /// Nome da stack Compose: o gravado; na falta (banco ainda não migrado, ou
     /// serviço que virou Compose depois), a fórmula legada com o nome atual —
@@ -147,9 +195,40 @@ impl ServiceSpec {
         }
     }
 
-    /// Portas de container que o ingress precisa alcançar: a de cada domínio,
-    /// mais a `port` do serviço quando há rota de porta no host. Ordenadas e
-    /// sem repetição.
+    /// Portas TCP efetivas do serviço: a lista `tcp_ports`, ou — para specs antigos que só têm o
+    /// `host_port` — uma rota única para a `port` do serviço.
+    pub fn tcp_routes(&self) -> Vec<TcpPortRoute> {
+        if !self.tcp_ports.is_empty() {
+            self.tcp_ports.clone()
+        } else if let Some(p) = self.host_port {
+            vec![TcpPortRoute {
+                host_port: p,
+                container_port: None,
+                label: None,
+            }]
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// Move o `host_port` legado para `tcp_ports` e **espelha** de volta no `host_port` a rota que vai para
+    /// a `port` do serviço (a única que um cliente/daemon antigo entende: ele liga o `host_port` à `port`).
+    /// Sem rota para a `port`, o espelho fica vazio, para nenhum antigo rotear para a porta errada.
+    /// Idempotente; chamado antes de gravar o spec.
+    pub fn materialize_tcp_ports(&mut self) {
+        if self.tcp_ports.is_empty() {
+            self.tcp_ports = self.tcp_routes();
+        }
+        let main = self.port;
+        self.host_port = self
+            .tcp_ports
+            .iter()
+            .find(|r| r.container_port(main) == main)
+            .map(|r| r.host_port);
+    }
+
+    /// Portas de container que o ingress precisa alcançar: a de cada domínio e a de cada porta TCP do
+    /// host. Ordenadas e sem repetição.
     ///
     /// Serve para escolher, numa stack Compose, qual container recebe a rota
     /// (ver `docker::containers::find_compose_ingress_container`).
@@ -159,9 +238,11 @@ impl ServiceSpec {
             .iter()
             .map(|r| r.container_port(self.port))
             .collect();
-        if self.host_port.is_some() {
-            ports.push(self.port);
-        }
+        ports.extend(
+            self.tcp_routes()
+                .iter()
+                .map(|r| r.container_port(self.port)),
+        );
         ports.sort_unstable();
         ports.dedup();
         ports
@@ -326,6 +407,7 @@ mod dependencias_tests {
             source: ServiceSource::Registry { image: "x".into() },
             port: 80,
             host_port: None,
+            tcp_ports: vec![],
             domain: None,
             tls_enabled: false,
             env_vars: vec![],
@@ -371,5 +453,72 @@ mod dependencias_tests {
     #[test]
     fn autostart_padrao_e_verdadeiro() {
         assert!(default_autostart());
+    }
+}
+
+#[cfg(test)]
+mod tcp_ports_tests {
+    use super::*;
+
+    fn spec(port: u16, host_port: Option<u16>) -> ServiceSpec {
+        let mut v = serde_json::json!({
+            "name": "s3", "project_id": "p", "source": {"Registry": {"image": "x"}},
+            "port": port, "domain": null, "env_vars": [], "volumes": [],
+            "healthcheck": Healthcheck::default(), "replicas": 1,
+            "resources": ResourceLimits::default(),
+        });
+        v["host_port"] = serde_json::json!(host_port);
+        serde_json::from_value(v).unwrap()
+    }
+
+    fn rota(host: u16, container: Option<u16>) -> TcpPortRoute {
+        TcpPortRoute {
+            host_port: host,
+            container_port: container,
+            label: None,
+        }
+    }
+
+    /// Spec antigo (só `host_port`) continua significando a mesma coisa: uma porta para a `port`.
+    #[test]
+    fn host_port_legado_vira_uma_rota_para_a_porta_do_servico() {
+        let s = spec(9000, Some(20002));
+        assert!(
+            s.tcp_ports.is_empty(),
+            "o campo novo nasce vazio no spec antigo"
+        );
+        assert_eq!(s.tcp_routes(), vec![rota(20002, None)]);
+        assert!(spec(9000, None).tcp_routes().is_empty());
+    }
+
+    #[test]
+    fn materializar_move_o_legado_e_espelha_a_rota_da_porta_principal() {
+        let mut s = spec(9000, Some(20002));
+        s.materialize_tcp_ports();
+        assert_eq!(s.tcp_ports, vec![rota(20002, None)]);
+        assert_eq!(s.host_port, Some(20002));
+
+        // a rota da porta principal pode ser a segunda: é ela que vai para o espelho
+        s.tcp_ports = vec![rota(20003, Some(9001)), rota(20005, Some(9000))];
+        s.materialize_tcp_ports();
+        assert_eq!(s.host_port, Some(20005));
+    }
+
+    /// Um cliente/daemon antigo liga o `host_port` à `port`: espelhar uma rota de outra porta o faria
+    /// rotear para o lugar errado.
+    #[test]
+    fn sem_rota_para_a_porta_principal_o_espelho_fica_vazio() {
+        let mut s = spec(9000, None);
+        s.tcp_ports = vec![rota(20003, Some(9001))];
+        s.materialize_tcp_ports();
+        assert_eq!(s.host_port, None);
+        assert_eq!(s.tcp_routes(), vec![rota(20003, Some(9001))]);
+    }
+
+    /// Sem portas novas o spec serializa como antes (o YAML do git não muda para quem não usa).
+    #[test]
+    fn lista_vazia_nao_aparece_no_json() {
+        let v = serde_json::to_value(spec(9000, Some(20002))).unwrap();
+        assert!(v.get("tcp_ports").is_none());
     }
 }

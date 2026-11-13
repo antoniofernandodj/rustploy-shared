@@ -450,6 +450,12 @@ pub enum Command {
     ServiceDataPlan {
         service_id: String,
     },
+    /// Portas do container que o serviço provavelmente tem (o que o container escuta, o que a imagem e o
+    /// compose declaram, e uma tabela por produto), para sugerir ao configurar as portas TCP. Só olha.
+    /// Resposta: `ServicePortSuggestions`.
+    ServicePortSuggestions {
+        service_id: String,
+    },
     /// O destino S3 dos backups de dados (sem a chave secreta). Resposta: `BackupDestination`.
     BackupDestinationGet,
     /// Grava o destino S3. `secret_key: None` mantém a chave já gravada. Confere os campos, mas não

@@ -77,6 +77,8 @@ pub enum Response {
     },
     /// Resposta de `ServiceDataPlan`.
     ServiceDataPlan(ServiceDataPlan),
+    /// Resposta de `ServicePortSuggestions`: das mais prováveis para as menos (internas no fim).
+    ServicePortSuggestions(Vec<PortSuggestion>),
     /// Resposta de `BackupDestinationGet` e `BackupDestinationSet`.
     BackupDestination(BackupDestinationView),
     /// Resposta de `ServiceBackupList`.

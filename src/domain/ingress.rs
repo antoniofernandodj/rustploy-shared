@@ -48,6 +48,7 @@ mod ingress_tests {
             }),
             port,
             host_port,
+            tcp_ports: vec![],
             domain: None,
             tls_enabled: false,
             env_vars: vec![],
@@ -113,6 +114,25 @@ mod ingress_tests {
             Some(15432),
         );
         assert_eq!(spec.ingress_container_ports(), vec![5432, 8000]);
+    }
+
+    /// Cada porta TCP leva o ingress a alcançar a porta do container dela (o console 9001 do RustFS).
+    #[test]
+    fn cada_porta_tcp_acrescenta_a_porta_do_container_dela() {
+        let mut spec = spec_com(Vec::new(), 9000, None);
+        spec.tcp_ports = vec![
+            TcpPortRoute {
+                host_port: 20002,
+                container_port: None,
+                label: None,
+            },
+            TcpPortRoute {
+                host_port: 20003,
+                container_port: Some(9001),
+                label: Some("console".into()),
+            },
+        ];
+        assert_eq!(spec.ingress_container_ports(), vec![9000, 9001]);
     }
 
     #[test]
